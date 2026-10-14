@@ -1,0 +1,1221 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vectra · Biblioteca técnica</title>
+  <meta name="description" content="Documentación técnica y de estudio del proyecto Vectra: arquitectura, tecnologías, flujos, base de datos, seguridad y preparación para entrevistas.">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip-link" href="#contenido">Saltar al contenido</a>
+
+<div class="layout">
+  <!-- ================= Navegación lateral ================= -->
+  <aside class="sidebar" aria-label="Tabla de contenidos">
+    <div class="sidebar__brand">
+      <a href="../../index.html">← Biblioteca técnica</a>
+      <strong>Vectra</strong>
+    </div>
+    <nav>
+      <ol>
+        <li><a href="#resumen">Resumen</a></li>
+        <li><a href="#inventario">Inventario</a></li>
+        <li><a href="#arquitectura">Arquitectura</a>
+          <ol>
+            <li><a href="#arq-componentes">Componentes</a></li>
+            <li><a href="#arq-monorepo">Monorepo</a></li>
+            <li><a href="#arq-ruta">Ruta de lectura</a></li>
+          </ol>
+        </li>
+        <li><a href="#tecnologias">Fichas de tecnologías</a></li>
+        <li><a href="#flujos">Flujos reales</a>
+          <ol>
+            <li><a href="#flujo-auth">Sesión y refresh</a></li>
+            <li><a href="#flujo-impacto">Editar producto → escenarios</a></li>
+            <li><a href="#flujo-composicion">Composición y ciclos</a></li>
+            <li><a href="#flujo-summary">Cálculo del resumen</a></li>
+            <li><a href="#flujo-errores">Errores de punta a punta</a></li>
+          </ol>
+        </li>
+        <li><a href="#datos">Base de datos</a></li>
+        <li><a href="#api">API</a></li>
+        <li><a href="#frontend">Frontend</a></li>
+        <li><a href="#devops">DevOps y testing</a></li>
+        <li><a href="#seguridad">Seguridad y calidad</a></li>
+        <li><a href="#decisiones">Decisiones de ingeniería</a></li>
+        <li><a href="#hallazgos">Hallazgos y limitaciones</a></li>
+        <li><a href="#entrevista">Entrevista</a>
+          <ol>
+            <li><a href="#pitch">Presentación oral</a></li>
+            <li><a href="#preguntas">Preguntas J/I/A</a></li>
+            <li><a href="#preguntas-arq">Arquitectura</a></li>
+            <li><a href="#preguntas-problemas">Resolución de problemas</a></li>
+          </ol>
+        </li>
+        <li><a href="#repaso">Repaso rápido</a></li>
+        <li><a href="#limites">Límites del análisis</a></li>
+      </ol>
+    </nav>
+  </aside>
+
+  <!-- ================= Contenido ================= -->
+  <main class="content" id="contenido">
+
+    <header class="doc-header">
+      <h1>Vectra</h1>
+      <p class="doc-header__lead">Simulador de escenarios financieros personales. Monorepo TypeScript con una SPA en React y una API REST en Fastify sobre PostgreSQL.</p>
+      <dl class="doc-meta">
+        <div><dt>Repositorio</dt><dd>juan888420/vectra (público)</dd></div>
+        <div><dt>Versión inspeccionada</dt><dd><code>b4caeb5</code> · rama <code>main</code></dd></div>
+        <div><dt>Último commit</dt><dd>2026-08-14</dd></div>
+        <div><dt>Fecha del análisis</dt><dd>2026-10-14</dd></div>
+        <div><dt>Historial</dt><dd>44 commits · 2026-07-22 → 2026-08-14</dd></div>
+        <div><dt>Método</dt><dd>Lectura estática del código, sin ejecutar la app</dd></div>
+      </dl>
+      <div class="doc-actions">
+        <button type="button" class="btn btn--primary" id="print-btn">Imprimir / guardar PDF</button>
+        <a class="btn" href="#entrevista">Ir a preparación de entrevista</a>
+      </div>
+    </header>
+
+    <div class="card">
+      <strong>Cómo leer las etiquetas de evidencia</strong>
+      <ul class="legend">
+        <li><span class="tag tag--verificado">Verificado</span> implementado y comprobado en el código</li>
+        <li><span class="tag tag--configurado">Configurado</span> declarado, uso no confirmado</li>
+        <li><span class="tag tag--documentado">Documentado</span> aparece en docs o en un ADR</li>
+        <li><span class="tag tag--inferido">Inferido</span> interpretación razonable de la evidencia</li>
+        <li><span class="tag tag--pendiente">Pendiente</span> requiere confirmación del autor</li>
+        <li><span class="tag tag--noencontrado">No encontrado</span> se buscó y no existe</li>
+      </ul>
+      <p class="note note--flush">Las rutas son relativas a la raíz del repositorio. Los rangos de líneas se tomaron del commit <code>b4caeb5</code>; si el código cambia, pueden desplazarse.</p>
+    </div>
+
+    <!-- ===================================================== -->
+    <section class="doc-section" id="resumen" aria-labelledby="h-resumen">
+      <h2 id="h-resumen">1. Resumen del proyecto</h2>
+      <p>Vectra responde preguntas del tipo <em>«¿qué pasa si agrego este gasto?»</em> o <em>«¿cuánto me cuesta este estilo de vida al año?»</em>. El usuario crea <strong>productos</strong> (gastos reutilizables con precio y frecuencia), los organiza en <strong>categorías</strong>, registra <strong>ingresos</strong> y arma <strong>escenarios</strong> que combinan productos e ingresos. Cada escenario calcula su costo mensual, a 6 y a 12 meses y qué porcentaje del ingreso consume. Los escenarios pueden incluir otros escenarios (composición).</p>
+
+      <div class="callout">
+        <span class="callout__title">Idea central que debes poder explicar</span>
+        <p>Un escenario <strong>no lee los productos en vivo</strong>. Al agregar un producto se guarda una <em>instantánea</em> (snapshot) de su nombre, precio y frecuencia en <code>ScenarioItem</code>. Si después cambia el precio, el escenario no se altera solo: la API informa qué escenarios se verían afectados y el usuario decide si sincroniza. Es la decisión de diseño más importante del proyecto (ADR-0005). <span class="tag tag--verificado">Verificado</span></p>
+      </div>
+
+      <h3>Evolución del producto</h3>
+      <p>El historial de Git y los ADR muestran que el proyecto cambió de enfoque. Conocer esto te permite explicar por qué hay código «fósil» en el schema.</p>
+      <ol class="route">
+        <li><strong>Julio 2026: <em>finance tracker</em> clásico.</strong> Cuentas, transacciones, presupuestos, transacciones recurrentes, dashboard y reportes (commits <code>4657598</code> a <code>a4d6a20</code>, RFC-0012 a RFC-0016). <span class="tag tag--verificado">Verificado en git log</span></li>
+        <li><strong>Pivote a «planes de gasto»</strong> (ADR-0004), luego corregido a <strong>escenarios financieros</strong> (ADR-0005) y a una interfaz orientada a preguntas (ADR-0006). <span class="tag tag--documentado">Documentado</span></li>
+        <li><strong>Agosto 2026: retiro del ledger</strong> (ADR-0007, RFC-0027). Se borraron rutas, servicios y pantallas de cuentas y transacciones, pero los modelos Prisma <code>Account</code>, <code>Transaction</code>, <code>Budget</code> y <code>RecurringTransaction</code> se conservaron en el schema. <span class="tag tag--verificado">Verificado</span></li>
+        <li><strong>Pulido visual y de errores</strong> (RFC-0028 y RFC-0029): responsive, identidad «glass», códigos de error estables y textos en español. <span class="tag tag--verificado">Verificado</span></li>
+      </ol>
+
+      <div class="callout callout--warn">
+        <span class="callout__title">Documentación desfasada dentro del propio repo</span>
+        <p><code>.claude/CLAUDE.md</code> todavía describe Vectra como un «personal finance tracker» y la descripción OpenAPI dice <code>"Personal finance tracker API"</code> (<code>apps/api/src/plugins/swagger.ts</code>, línea 12). El README y los ADR 0005 a 0007 reflejan el estado real. Si un entrevistador abre el repo, conviene que conozcas esta discrepancia.</p>
+      </div>
+    </section>
+
+    <!-- ===================================================== -->
+    <section class="doc-section" id="inventario" aria-labelledby="h-inventario">
+      <h2 id="h-inventario">2. Inventario técnico</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col">Aspecto</th><th scope="col">Hallazgo</th><th scope="col">Evidencia</th></tr></thead>
+          <tbody>
+            <tr><td>Lenguaje</td><td>TypeScript estricto en todo el repo (<code>strict</code>, <code>noUncheckedIndexedAccess</code>)</td><td><code>packages/config/tsconfig.base.json</code> <span class="tag tag--verificado">Verificado</span></td></tr>
+            <tr><td>Gestor y monorepo</td><td>pnpm workspaces + Turborepo</td><td><code>pnpm-workspace.yaml</code>, <code>turbo.json</code> <span class="tag tag--verificado">Verificado</span></td></tr>
+            <tr><td>Frontend</td><td>React 19, Vite 6 (SWC), React Router 7, TanStack Query 5, React Hook Form, Zod 4, Tailwind v4, shadcn/ui (Radix), Sonner, Lucide, Framer Motion</td><td><code>apps/web/package.json</code> + imports <span class="tag tag--verificado">Verificado</span></td></tr>
+            <tr><td>Backend</td><td>Fastify 5, fastify-type-provider-zod, @fastify/jwt, cookie, helmet, cors, rate-limit, swagger, bcrypt</td><td><code>apps/api/src/app.ts</code>, <code>plugins/</code> <span class="tag tag--verificado">Verificado</span></td></tr>
+            <tr><td>Base de datos</td><td>PostgreSQL vía Prisma 7 con driver adapter <code>@prisma/adapter-pg</code></td><td><code>apps/api/prisma/schema.prisma</code>, <code>plugins/prisma.ts</code> <span class="tag tag--verificado">Verificado</span></td></tr>
+            <tr><td>Migraciones</td><td>12 migraciones SQL (2026-07-23 → 2026-08-05) + script manual <code>db:apply</code></td><td><code>apps/api/prisma/migrations/</code>, <code>apps/api/scripts/apply-migration.ts</code> <span class="tag tag--verificado">Verificado</span></td></tr>
+            <tr><td>Testing</td><td>API: 59 casos de integración (Vitest + Supertest contra Postgres real). Web: 1 caso (Testing Library + MSW)</td><td><code>apps/api/tests/</code>, <code>apps/web/tests/</code> <span class="tag tag--verificado">Verificado</span></td></tr>
+            <tr><td>Calidad</td><td>ESLint 9 (flat config), Prettier, Husky <code>pre-commit</code> → lint-staged</td><td><code>.husky/pre-commit</code>, <code>package.json</code> <span class="tag tag--verificado">Verificado</span></td></tr>
+            <tr><td>Contrato de API</td><td>OpenAPI 3.1 generado desde los schemas Zod, Swagger UI en <code>/docs</code></td><td><code>apps/api/src/plugins/swagger.ts</code> <span class="tag tag--verificado">Verificado</span></td></tr>
+            <tr><td>CI/CD</td><td>Sin workflows. <code>.github/</code> solo tiene plantillas de issue y de PR</td><td><span class="tag tag--noencontrado">No encontrado</span></td></tr>
+            <tr><td>Docker</td><td>Sin <code>Dockerfile</code> ni <code>docker-compose</code>, aunque el ADR-0001 los lista</td><td><span class="tag tag--noencontrado">No encontrado</span></td></tr>
+            <tr><td>Deploy</td><td>El ADR-0001 propone Vercel (web), Railway (API) y Neon o Railway (DB). No hay archivos de configuración de deploy</td><td><span class="tag tag--documentado">Documentado</span> <span class="tag tag--noencontrado">Config no encontrada</span></td></tr>
+            <tr><td>Recharts</td><td>Declarado en <code>apps/web/package.json</code> pero sin ningún import (lo usaba el dashboard retirado)</td><td><span class="tag tag--configurado">Configurado sin uso</span></td></tr>
+            <tr><td>Documentación</td><td>README, 7 ADR, <code>docs/architecture/</code>, glosario, roadmap y <code>docs/resumen.md</code> (bitácora por sesión). Los RFC citados (RFC-0010, RFC-0023.3…) <strong>no están versionados</strong> en el repo</td><td><code>docs/</code> <span class="tag tag--verificado">Verificado</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===================================================== -->
+    <section class="doc-section" id="arquitectura" aria-labelledby="h-arq">
+      <h2 id="h-arq">3. Arquitectura</h2>
+
+      <h3 id="arq-componentes">3.1 Diagrama de componentes</h3>
+      <figure class="diagram">
+        <svg viewBox="0 0 900 470" role="img" aria-labelledby="arq-title arq-desc">
+          <title id="arq-title">Arquitectura de Vectra</title>
+          <desc id="arq-desc">El navegador ejecuta la SPA apps/web, que llama por HTTP JSON a la API apps/api. La API usa Prisma con el adaptador pg para acceder a PostgreSQL. Los paquetes compartidos types, utils, ui y config alimentan a ambas apps. CI, Docker y deploy no existen en el repositorio.</desc>
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" class="d-arrowhead"/>
+            </marker>
+          </defs>
+          <!-- Web -->
+          <rect class="d-group" x="10" y="10" width="255" height="300" rx="10"/>
+          <text class="d-title" x="25" y="34">Navegador · apps/web (SPA)</text>
+          <rect class="d-box" x="22" y="48" width="230" height="44" rx="6"/>
+          <text class="d-title" x="37" y="67">React 19 + React Router 7</text>
+          <text class="d-text" x="37" y="83">features/* · páginas y componentes</text>
+          <rect class="d-box" x="22" y="102" width="230" height="44" rx="6"/>
+          <text class="d-title" x="37" y="121">React Hook Form + Zod</text>
+          <text class="d-text" x="37" y="137">formularios y validación en cliente</text>
+          <rect class="d-box" x="22" y="156" width="230" height="44" rx="6"/>
+          <text class="d-title" x="37" y="175">TanStack Query</text>
+          <text class="d-text" x="37" y="191">caché de estado del servidor</text>
+          <rect class="d-accent" x="22" y="210" width="230" height="44" rx="6"/>
+          <text class="d-title" x="37" y="229">lib/api-client.ts</text>
+          <text class="d-text" x="37" y="245">fetch + Bearer + refresh single-flight</text>
+          <text class="d-small" x="25" y="282">token de acceso: en memoria</text>
+          <text class="d-small" x="25" y="298">refresh: cookie HttpOnly (path /auth)</text>
+
+          <!-- API -->
+          <rect class="d-group" x="330" y="10" width="300" height="300" rx="10"/>
+          <text class="d-title" x="345" y="34">Servidor · apps/api (Fastify 5)</text>
+          <rect class="d-box" x="345" y="48" width="270" height="58" rx="6"/>
+          <text class="d-title" x="357" y="67">Plugins globales</text>
+          <text class="d-text" x="357" y="83">helmet · cors · rate-limit · jwt + cookie</text>
+          <text class="d-text" x="357" y="98">swagger · error-handler · prisma</text>
+          <rect class="d-accent" x="345" y="116" width="270" height="58" rx="6"/>
+          <text class="d-title" x="357" y="135">features/&lt;dominio&gt;/*.routes.ts</text>
+          <text class="d-text" x="357" y="151">schema Zod → validación + OpenAPI</text>
+          <text class="d-text" x="357" y="166">auth · categories · expense-items · …</text>
+          <rect class="d-box" x="345" y="184" width="270" height="58" rx="6"/>
+          <text class="d-title" x="357" y="203">features/&lt;dominio&gt;/*.service.ts</text>
+          <text class="d-text" x="357" y="219">reglas de negocio · propiedad (userId)</text>
+          <text class="d-text" x="357" y="234">snapshots · BFS de composición</text>
+          <rect class="d-box" x="345" y="252" width="270" height="44" rx="6"/>
+          <text class="d-title" x="357" y="271">Prisma Client 7 (adapter-pg)</text>
+          <text class="d-text" x="357" y="287">consultas tipadas y parametrizadas</text>
+
+          <!-- DB -->
+          <rect class="d-accent" x="690" y="230" width="190" height="66" rx="10"/>
+          <text class="d-title" x="705" y="255">PostgreSQL</text>
+          <text class="d-text" x="705" y="272">12 migraciones SQL</text>
+          <text class="d-text" x="705" y="287">uuid v7 · Decimal(12,2)</text>
+
+          <!-- Swagger -->
+          <rect class="d-box" x="690" y="60" width="190" height="50" rx="8"/>
+          <text class="d-title" x="705" y="82">Swagger UI /docs</text>
+          <text class="d-text" x="705" y="98">OpenAPI 3.1 desde Zod</text>
+
+          <!-- arrows -->
+          <path class="d-line" d="M252 232 L345 145" marker-end="url(#arrow)"/>
+          <text class="d-small" x="276" y="226">HTTP/JSON</text>
+          <path class="d-line" d="M615 274 L690 264" marker-end="url(#arrow)"/>
+          <path class="d-dash" d="M615 77 L690 85" marker-end="url(#arrow)"/>
+
+          <!-- packages -->
+          <rect class="d-group" x="10" y="330" width="620" height="125" rx="10"/>
+          <text class="d-title" x="25" y="354">packages/* (compartidos vía workspace:*)</text>
+          <rect class="d-box" x="25" y="366" width="140" height="74" rx="6"/>
+          <text class="d-title" x="35" y="386">@vectra/types</text>
+          <text class="d-text" x="35" y="402">schemas Zod</text>
+          <text class="d-text" x="35" y="417">ErrorCode</text>
+          <text class="d-small" x="35" y="432">api: solo errores</text>
+          <rect class="d-box" x="177" y="366" width="140" height="74" rx="6"/>
+          <text class="d-title" x="187" y="386">@vectra/utils</text>
+          <text class="d-text" x="187" y="402">toMonthlyEquivalent</text>
+          <text class="d-text" x="187" y="417">formatMoney</text>
+          <text class="d-small" x="187" y="432">web + api</text>
+          <rect class="d-box" x="329" y="366" width="140" height="74" rx="6"/>
+          <text class="d-title" x="339" y="386">@vectra/ui</text>
+          <text class="d-text" x="339" y="402">shadcn/Radix, tema</text>
+          <text class="d-text" x="339" y="417">FormDialog, EmptyState</text>
+          <text class="d-small" x="339" y="432">solo web</text>
+          <rect class="d-box" x="481" y="366" width="135" height="74" rx="6"/>
+          <text class="d-title" x="491" y="386">@vectra/config</text>
+          <text class="d-text" x="491" y="402">tsconfig base</text>
+          <text class="d-text" x="491" y="417">eslint · prettier</text>
+          <text class="d-small" x="491" y="432">tooling</text>
+
+          <!-- missing -->
+          <rect class="d-missing" x="660" y="340" width="225" height="100" rx="10"/>
+          <text class="d-title" x="675" y="364">No encontrado en el repo</text>
+          <text class="d-text" x="675" y="384">CI (GitHub Actions)</text>
+          <text class="d-text" x="675" y="400">Dockerfile / docker-compose</text>
+          <text class="d-text" x="675" y="416">Config de Vercel / Railway</text>
+          <text class="d-small" x="675" y="432">solo previstos en ADR-0001</text>
+        </svg>
+        <figcaption>Explicación del diagrama: el navegador ejecuta una SPA renderizada en cliente. Toda comunicación con el servidor pasa por <code>apps/web/src/lib/api-client.ts</code>, que agrega el token de acceso y reintenta tras renovar la sesión. En la API, cada petición atraviesa primero los plugins globales; luego la ruta del dominio valida la entrada con Zod y delega en el servicio, que aplica las reglas de negocio y consulta PostgreSQL a través de Prisma. Los paquetes compartidos evitan duplicar fórmulas (utils) y contratos (types). La caja roja marca lo que el ADR-0001 promete y el repo no contiene.</figcaption>
+      </figure>
+
+      <h3>Responsabilidades por capa</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col">Capa</th><th scope="col">Responsabilidad</th><th scope="col">Dónde</th></tr></thead>
+          <tbody>
+            <tr><td>Páginas y componentes</td><td>Mostrar métricas derivadas y disparar acciones. No calculan totales (eso lo hace la API)</td><td><code>apps/web/src/features/*/…Page.tsx</code></td></tr>
+            <tr><td>Hooks de datos</td><td><code>useQuery</code>/<code>useMutation</code> por feature e invalidación cruzada de caché</td><td><code>apps/web/src/features/*/use-*.ts</code></td></tr>
+            <tr><td>Clientes HTTP por feature</td><td>Construir la URL, llamar a <code>apiRequest</code> y <strong>re-validar la respuesta con Zod</strong></td><td><code>apps/web/src/features/*/*.api.ts</code></td></tr>
+            <tr><td>Rutas (API)</td><td>Declarar método, path, schemas de entrada y salida, seguridad y status. No contienen lógica</td><td><code>apps/api/src/features/*/*.routes.ts</code></td></tr>
+            <tr><td>Servicios (API)</td><td>Reglas de negocio, verificación de propiedad, transacciones Prisma y cálculos</td><td><code>apps/api/src/features/*/*.service.ts</code></td></tr>
+            <tr><td>Lib transversal (API)</td><td>Errores HTTP tipados, propiedad, paginación y schemas comunes</td><td><code>apps/api/src/lib/</code></td></tr>
+            <tr><td>Persistencia</td><td>Schema, migraciones y seed</td><td><code>apps/api/prisma/</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 id="arq-monorepo">3.2 Organización: monorepo por features</h3>
+      <p>El código se organiza <strong>por dominio de negocio</strong> (vertical slices), no por tipo técnico. Cada feature del backend tiene tres archivos con el mismo prefijo: <code>*.routes.ts</code>, <code>*.schemas.ts</code> y <code>*.service.ts</code>. En el frontend, cada feature agrupa páginas, diálogos, hooks, cliente HTTP y claves de caché. <span class="tag tag--verificado">Verificado</span> <span class="tag tag--documentado">Regla documentada en .claude/CLAUDE.md</span></p>
+<figure class="snippet">
+<figcaption>Estructura (resumida) · verificada con <code>git ls-files</code></figcaption>
+<pre>apps/
+  api/
+    prisma/            schema.prisma · migrations/ · seed.ts
+    src/
+      app.ts           composición de plugins y rutas (buildApp)
+      server.ts        arranque + apagado ordenado
+      config/env.ts    variables de entorno validadas con Zod
+      plugins/         auth · prisma · swagger · error-handler
+      lib/             http-errors · ownership · pagination · schemas
+      features/        auth · users · health · categories ·
+                       expense-items · incomes · scenarios
+    tests/             integración con Supertest
+  web/
+    src/
+      app/             App.tsx · router.tsx · Layout.tsx
+      lib/             api-client · query-client · error-messages · form-errors
+      components/      piezas de página compartidas (StatCard, Pagination…)
+      features/        auth · categories · expense-items · incomes · scenarios
+    tests/             Testing Library + MSW
+packages/
+  types/  utils/  ui/  config/</pre>
+</figure>
+
+      <h3 id="arq-ruta">3.3 Ruta de lectura recomendada</h3>
+      <ol class="route">
+        <li><code>apps/api/src/app.ts</code> (líneas 35-71): ves todos los plugins y prefijos de ruta en un solo lugar.</li>
+        <li><code>apps/api/prisma/schema.prisma</code>: empieza por <code>Scenario</code> (325-347) y <code>ScenarioItem</code> (356-389).</li>
+        <li><code>apps/api/src/features/expense-items/</code>: el feature más pequeño que muestra el patrón completo routes → schemas → service.</li>
+        <li><code>apps/api/src/features/auth/auth.service.ts</code>: sesión con rotación de refresh tokens.</li>
+        <li><code>apps/api/src/features/scenarios/scenarios.service.ts</code>: 1.487 líneas; lee por secciones (composición 367-467, diffs 469-512, sincronización 945-1234, resumen 1400-1487).</li>
+        <li><code>apps/web/src/lib/api-client.ts</code> y luego <code>apps/web/src/features/auth/AuthProvider.tsx</code>.</li>
+        <li><code>apps/web/src/features/expense-items/use-expense-items.ts</code> y <code>ExpenseItemFormDialog.tsx</code>.</li>
+        <li><code>apps/api/tests/scenarios.test.ts</code>: los nombres de los tests son una especificación legible del dominio.</li>
+      </ol>
+    </section>
+
+    <!-- ===================================================== -->
+    <section class="doc-section" id="tecnologias" aria-labelledby="h-tec">
+      <h2 id="h-tec">4. Fichas de tecnologías</h2>
+      <p>Cada ficha responde las 12 preguntas de estudio. Haz clic en el título para expandirla. Solo hay fichas para tecnologías con uso verificado; al final hay una lista de las que están declaradas pero sin uso.</p>
+
+      <!-- Fastify -->
+      <details class="card tech-card" open>
+        <summary>Fastify 5 <span class="tag tag--verificado">Verificado</span><span class="tech-card__role">Framework HTTP de la API</span></summary>
+        <dl class="qa-grid">
+          <dt>1. ¿Qué es?</dt><dd>Framework web para Node.js centrado en rendimiento y en un sistema de <strong>plugins encapsulados</strong>. Cada ruta puede declarar un schema de entrada y salida.</dd>
+          <dt>2. ¿Qué problema resuelve?</dt><dd>Enrutamiento, ciclo de vida de la petición (hooks), serialización y validación declarativa, sin escribir middleware a mano para cada caso.</dd>
+          <dt>3. Función en Vectra</dt><dd>Es la API REST completa. <code>buildApp()</code> registra helmet, cors, rate-limit, Prisma, JWT y Swagger, y monta 7 grupos de rutas con prefijo.</dd>
+          <dt>4. Integración</dt><dd>Con Zod mediante <code>fastify-type-provider-zod</code> (validación y tipos), con Prisma a través de un <em>decorator</em> (<code>app.prisma</code>) y con JWT a través de otro (<code>app.authenticate</code>). Los tests usan <code>app.server</code> con Supertest.</dd>
+          <dt>5. ¿Por qué encaja?</dt><dd>El ADR-0001 la elige como «framework HTTP / API» sin detallar el motivo. <span class="tag tag--inferido">Inferido</span>: su modelo de schemas por ruta permite generar OpenAPI y validar con la misma fuente, que es justo lo que hace el proyecto.</dd>
+          <dt>6. Evidencia</dt><dd><code>apps/api/src/app.ts</code> 35-71; 7 archivos <code>*.routes.ts</code>.</dd>
+          <dt>7. Dónde estudiarla</dt><dd>
+            <div class="ref"><dl><dt>Archivo</dt><dd><code>apps/api/src/app.ts</code></dd><dt>Símbolo</dt><dd><code>buildApp</code>, líneas 35-71</dd><dt>Qué verás</dt><dd>Orden de registro de plugins y prefijos</dd></dl></div>
+            <div class="ref"><dl><dt>Archivo</dt><dd><code>apps/api/src/plugins/prisma.ts</code></dd><dt>Símbolo</dt><dd><code>prismaPlugin</code>, líneas 14-23</dd><dt>Qué verás</dt><dd><code>fastify-plugin</code>, <code>decorate</code> y hook <code>onClose</code></dd></dl></div>
+          </dd>
+          <dt>8. Conceptos previos</dt><dd>Plugins y encapsulación, <code>fastify-plugin</code> (rompe la encapsulación para exponer decorators), hooks (<code>onRequest</code>, <code>onClose</code>), decorators, declaration merging de TypeScript (<code>declare module "fastify"</code>).</dd>
+          <dt>9. Alternativas</dt><dd>Express (más popular, sin schemas nativos), NestJS (más estructura e inyección de dependencias), Hono (orientado a edge).</dd>
+          <dt>10. Ventajas y límites aquí</dt><dd>Ventaja: contrato, validación y documentación en un solo lugar. Límite: la encapsulación de plugins confunde al principio; por eso <code>authPlugin</code> y <code>prismaPlugin</code> se envuelven en <code>fp()</code>, para que sus decorators lleguen a las rutas.</dd>
+          <dt>11. Errores comunes</dt><dd>Olvidar <code>fp()</code> y que <code>app.prisma</code> sea <code>undefined</code> en otro plugin; registrar rutas antes de un plugin del que dependen; enviar <code>Content-Type: application/json</code> sin cuerpo (Fastify responde 400; el cliente lo evita a propósito, <code>api-client.ts</code> 101-106).</dd>
+          <dt>12. En una entrevista</dt><dd>«La API es una app Fastify construida en una función <code>buildApp</code>, lo que me permite levantarla igual en producción y en tests. Cada dominio es un plugin con su prefijo; la autenticación es un decorator que las rutas usan como hook <code>onRequest</code>.»</dd>
+        </dl>
+      </details>
+
+      <!-- Zod -->
+      <details class="card tech-card">
+        <summary>Zod 4 + fastify-type-provider-zod <span class="tag tag--verificado">Verificado</span><span class="tech-card__role">Validación y contrato de datos en cliente, servidor y entorno</span></summary>
+        <dl class="qa-grid">
+          <dt>1. ¿Qué es?</dt><dd>Librería para declarar schemas en TypeScript que validan datos en runtime y de los que se infiere el tipo estático (<code>z.infer</code>).</dd>
+          <dt>2. ¿Qué problema resuelve?</dt><dd>TypeScript desaparece en runtime: los datos externos (body HTTP, variables de entorno, respuestas del servidor) no tienen garantías. Zod las comprueba.</dd>
+          <dt>3. Función en Vectra</dt><dd>Se usa en cuatro lugares: (a) bodies, params y queries de cada ruta; (b) schemas de respuesta, que también filtran campos al serializar; (c) variables de entorno al arrancar (<code>config/env.ts</code>, <code>web/src/lib/env.ts</code>); (d) re-validación en el frontend de cada respuesta de la API (<code>*.api.ts</code>).</dd>
+          <dt>4. Integración</dt><dd><code>app.setValidatorCompiler(validatorCompiler)</code> y <code>setSerializerCompiler</code> (<code>app.ts</code> 40-41). <code>jsonSchemaTransform</code> convierte los mismos schemas a OpenAPI. En el formulario, <code>zodResolver</code> conecta Zod con React Hook Form.</dd>
+          <dt>5. ¿Por qué encaja?</dt><dd>Documentado: «Zod valida end-to-end» (comentario en <code>auth.api.ts</code> 10-12). Una sola herramienta para todas las fronteras de confianza.</dd>
+          <dt>6. Evidencia</dt><dd><code>apps/api/src/features/*/*.schemas.ts</code>, <code>packages/types/src/*.ts</code>, <code>apps/web/src/main.tsx</code> 12 (<code>z.config(es())</code>, mensajes en español).</dd>
+          <dt>7. Dónde estudiarla</dt><dd>
+            <div class="ref"><dl><dt>Archivo</dt><dd><code>apps/api/src/config/env.ts</code></dd><dt>Líneas</dt><dd>5-23</dd><dt>Qué verás</dt><dd>Patrón <em>fail fast</em>: si falta <code>DATABASE_URL</code> o <code>JWT_SECRET</code> tiene menos de 32 caracteres, el proceso termina</dd></dl></div>
+            <div class="ref"><dl><dt>Archivo</dt><dd><code>apps/api/src/lib/pagination.ts</code></dd><dt>Líneas</dt><dd>58-63</dd><dt>Qué verás</dt><dd>Por qué no se usa <code>z.coerce.boolean()</code> en query strings (convierte <code>"false"</code> en <code>true</code>)</dd></dl></div>
+          </dd>
+          <dt>8. Conceptos previos</dt><dd>Validación en runtime frente a tipos estáticos, <code>safeParse</code> frente a <code>parse</code>, <code>coerce</code>, uniones discriminadas, inferencia de tipos.</dd>
+          <dt>9. Alternativas</dt><dd>Valibot (más ligero), Yup, TypeBox (JSON Schema nativo, muy usado con Fastify), class-validator (NestJS).</dd>
+          <dt>10. Ventajas y límites aquí</dt><dd>Ventaja: errores de validación uniformes (<code>VALIDATION_FAILED</code> con <code>issues</code>). Límite: <strong>los schemas están duplicados</strong>. La API tiene sus propios <code>*.schemas.ts</code> y la web usa <code>packages/types</code>; ambos dicen «Mirrors…» en comentarios. La API solo importa <code>ErrorCode</code>/<code>errorCodeSchema</code> de <code>@vectra/types</code>. <span class="tag tag--verificado">Verificado</span></dd>
+          <dt>11. Errores comunes</dt><dd>Coerción inesperada en query strings; desalineación entre el tipo de entrada y el de salida con <code>.default()</code> (resuelto en <code>ExpenseItemFormDialog.tsx</code> 46-55); confiar en el tipo genérico de <code>fetch</code> sin validar.</dd>
+          <dt>12. En una entrevista</dt><dd>«Uso Zod en todas las fronteras de confianza: request, response, entorno y respuestas que recibe el cliente. En Fastify los mismos schemas generan la documentación OpenAPI, así que el contrato no puede quedar desactualizado respecto a la validación.»</dd>
+        </dl>
+      </details>
+
+      <!-- Prisma + Postgres -->
+      <details class="card tech-card">
+        <summary>Prisma 7 + PostgreSQL <span class="tag tag--verificado">Verificado</span><span class="tech-card__role">ORM, migraciones y base de datos relacional</span></summary>
+        <dl class="qa-grid">
+          <dt>1. ¿Qué es?</dt><dd>Prisma es un ORM: a partir de un archivo <code>schema.prisma</code> genera un cliente TypeScript tipado y migraciones SQL. PostgreSQL es la base relacional.</dd>
+          <dt>2. ¿Qué problema resuelve?</dt><dd>Escribir SQL a mano sin tipos, el mapeo entre filas y objetos, y el versionado del esquema.</dd>
+          <dt>3. Función en Vectra</dt><dd>Toda la persistencia. Los servicios reciben <code>PrismaClient</code> por parámetro (no lo importan), lo que facilita los tests y las transacciones.</dd>
+          <dt>4. Integración</dt><dd>Prisma 7 no usa motor en Rust: conecta con un <em>driver adapter</em> (<code>PrismaPg</code>). La URL vive en <code>prisma.config.ts</code> y el cliente se genera en <code>src/generated/prisma</code> (ignorado por git). Se expone como <code>app.prisma</code>.</dd>
+          <dt>5. ¿Por qué encaja?</dt><dd>Decisiones de mapeo documentadas en el ADR-0002 (Money como <code>Decimal(12,2)</code> + <code>Char(3)</code>, UUID v7, índices parciales en SQL crudo).</dd>
+          <dt>6. Evidencia</dt><dd><code>apps/api/prisma/schema.prisma</code> (458 líneas), 12 migraciones, <code>plugins/prisma.ts</code>.</dd>
+          <dt>7. Dónde estudiarla</dt><dd>
+            <div class="ref"><dl><dt>Archivo</dt><dd><code>apps/api/prisma/migrations/20260723015119_init/migration.sql</code></dd><dt>Líneas</dt><dd>186-188</dd><dt>Qué verás</dt><dd>Índice único <strong>parcial</strong> (<code>WHERE "archivedAt" IS NULL</code>) escrito a mano porque Prisma no lo soporta de forma declarativa</dd></dl></div>
+            <div class="ref"><dl><dt>Archivo</dt><dd><code>apps/api/src/features/expense-items/expense-items.service.ts</code></dd><dt>Símbolo</dt><dd><code>listExpenseItems</code>, líneas 63-85</dd><dt>Qué verás</dt><dd><code>$transaction([count, findMany])</code> para paginar de forma consistente</dd></dl></div>
+          </dd>
+          <dt>8. Conceptos previos</dt><dd>Relaciones 1:N y N:M, <code>onDelete</code> (Cascade, Restrict, SetNull), índices compuestos, transacciones interactivas frente a transacciones por lote, códigos de error de Prisma (<code>P2002</code> = violación de unicidad), migraciones.</dd>
+          <dt>9. Alternativas</dt><dd>Drizzle (más cercano a SQL), Kysely (query builder), TypeORM, SQL directo con <code>pg</code>.</dd>
+          <dt>10. Ventajas y límites aquí</dt><dd>Ventaja: tipos de extremo a extremo y consultas parametrizadas. Límites visibles: los <code>CHECK</code> y los índices parciales no se expresan en el schema; los montos <code>Decimal</code> se convierten a <code>Number</code> para calcular; y el schema conserva modelos sin endpoints.</dd>
+          <dt>11. Errores comunes</dt><dd>Consultas N+1 en bucles (aquí el BFS de composición hace una consulta por nodo); olvidar que <code>findUnique</code> solo acepta campos únicos (por eso la verificación de propiedad usa <code>findFirst({ id, userId })</code>); usar <code>Number</code> con dinero.</dd>
+          <dt>12. En una entrevista</dt><dd>«Modelé el dominio en Prisma, pero cuando el ORM no alcanzaba, como un índice único que solo aplica a filas no archivadas, lo escribí en SQL dentro de la migración y lo documenté en un ADR.»</dd>
+        </dl>
+      </details>
+
+      <!-- JWT + refresh + bcrypt -->
+      <details class="card tech-card">
+        <summary>JWT + refresh tokens rotativos + bcrypt <span class="tag tag--verificado">Verificado</span><span class="tech-card__role">Autenticación de sesión</span></summary>
+        <dl class="qa-grid">
+          <dt>1. ¿Qué es?</dt><dd>JWT: token firmado que el servidor verifica sin consultar la base de datos. Refresh token: credencial de larga duración que sirve solo para obtener nuevos JWT. bcrypt: función de hash lenta y con sal, pensada para contraseñas.</dd>
+          <dt>2. ¿Qué problema resuelve?</dt><dd>Mantener sesiones sin exponer un token de larga vida a JavaScript, y guardar contraseñas de forma que una filtración de la base no las revele.</dd>
+          <dt>3. Función en Vectra</dt><dd>El access token (HS256, 15 min) viaja en <code>Authorization: Bearer</code>. El refresh token (256 bits aleatorios, 7 días) viaja en una cookie <code>HttpOnly</code> limitada a <code>path=/auth</code>; en la base solo se guarda su SHA-256. Cada uso lo rota, y reutilizar uno ya revocado revoca todas las sesiones del usuario.</dd>
+          <dt>4. Integración</dt><dd><code>@fastify/jwt</code> firma y verifica (<code>reply.jwtSign</code>, <code>request.jwtVerify</code>); <code>@fastify/cookie</code> maneja la cookie; el modelo <code>RefreshToken</code> persiste los hashes; en el cliente, <code>api-client.ts</code> renueva el token de forma transparente.</dd>
+          <dt>5. ¿Por qué encaja?</dt><dd>ADR-0001 pide «JWT + Refresh Tokens» y bcrypt; las reglas de seguridad de <code>.claude/CLAUDE.md</code> piden cookies HttpOnly para refresh tokens. <span class="tag tag--documentado">Documentado</span></dd>
+          <dt>6. Evidencia</dt><dd><code>apps/api/src/plugins/auth.ts</code>, <code>features/auth/auth.service.ts</code>, <code>features/auth/auth.routes.ts</code>.</dd>
+          <dt>7. Dónde estudiarla</dt><dd>
+            <div class="ref"><dl><dt>Archivo</dt><dd><code>apps/api/src/features/auth/auth.service.ts</code></dd><dt>Símbolo</dt><dd><code>rotateRefreshToken</code>, líneas 82-118</dd><dt>Qué verás</dt><dd>Detección de reutilización (97-103) y rotación dentro de una transacción (109-115)</dd></dl></div>
+            <div class="ref"><dl><dt>Archivo</dt><dd><code>apps/api/src/features/auth/auth.routes.ts</code></dd><dt>Símbolo</dt><dd><code>setRefreshCookie</code>, líneas 17-25</dd><dt>Qué verás</dt><dd>Atributos de la cookie: <code>httpOnly</code>, <code>secure</code> en producción, <code>sameSite: "lax"</code>, <code>path: "/auth"</code></dd></dl></div>
+          </dd>
+          <dt>8. Conceptos previos</dt><dd>Stateless frente a stateful, firma HMAC, claims (<code>sub</code>, <code>exp</code>), XSS frente a CSRF, atributos de cookie, rotación y detección de reutilización, factor de coste de bcrypt y su límite de 72 bytes.</dd>
+          <dt>9. Alternativas</dt><dd>Sesiones de servidor con cookie (express-session o Redis), proveedores gestionados (Auth.js, Clerk, Supabase Auth), PASETO, Argon2 en lugar de bcrypt.</dd>
+          <dt>10. Ventajas y límites aquí</dt><dd>Ventajas: el access token nunca toca <code>localStorage</code>; una base filtrada no permite reutilizar sesiones (solo hay hashes). Límites: un JWT emitido sigue siendo válido hasta 15 min aunque se cierre sesión; <code>SameSite=Lax</code> funciona en localhost, pero el despliegue cruzado Vercel ↔ Railway que mencionan los comentarios requeriría otra configuración (RFC-0010, que no está en el repo). <span class="tag tag--pendiente">Pendiente</span></dd>
+          <dt>11. Errores comunes</dt><dd>Guardar tokens en <code>localStorage</code>; no rotar los refresh tokens; carreras entre dos peticiones de refresh simultáneas (resuelto en el cliente con una promesa compartida y, para StrictMode, con <code>useRef</code> en <code>AuthProvider.tsx</code> 14-25); contraseñas de más de 72 bytes (el schema limita a 72, <code>auth.schemas.ts</code> 7-8).</dd>
+          <dt>12. En una entrevista</dt><dd>«Separé el access token, de vida corta y en memoria, del refresh token, en una cookie HttpOnly limitada a <code>/auth</code>. El refresh es opaco: guardo solo su hash, lo roto en cada uso y, si llega uno ya revocado, asumo que fue robado y revoco todas las sesiones del usuario.»</dd>
+        </dl>
+      </details>
+
+      <!-- React + Vite -->
+      <details class="card tech-card">
+        <summary>React 19 + Vite 6 + React Router 7 <span class="tag tag--verificado">Verificado</span><span class="tech-card__role">SPA renderizada en cliente</span></summary>
+        <dl class="qa-grid">
+          <dt>1. ¿Qué es?</dt><dd>React es la librería de UI; Vite, el servidor de desarrollo y bundler (aquí con el plugin SWC); React Router, el enrutamiento en cliente.</dd>
+          <dt>2. ¿Qué problema resuelve?</dt><dd>Interfaces declarativas por componentes, recarga rápida en desarrollo y navegación sin recargar la página.</dd>
+          <dt>3. Función en Vectra</dt><dd>Toda la interfaz. Hay rutas públicas (<code>/login</code>, <code>/register</code>) y un grupo protegido por <code>ProtectedRoute</code>, con <code>/</code> redirigiendo a <code>/scenarios</code> (ADR-0006).</dd>
+          <dt>4. Integración</dt><dd>Árbol de providers en <code>App.tsx</code>: QueryClient → Theme → Router → Auth → rutas. Se usan rutas declarativas a propósito, sin loaders, porque TanStack Query gestiona los datos (<code>router.tsx</code> 17-19).</dd>
+          <dt>5. ¿Por qué encaja?</dt><dd>ADR-0001 elige frontend y backend separados. <span class="tag tag--inferido">Inferido</span>: una SPA basta porque toda la app está detrás de login y no necesita SEO.</dd>
+          <dt>6. Evidencia</dt><dd><code>apps/web/src/main.tsx</code>, <code>app/App.tsx</code> 10-24, <code>app/router.tsx</code> 24-46, <code>vite.config.ts</code>.</dd>
+          <dt>7. Dónde estudiarla</dt><dd>
+            <div class="ref"><dl><dt>Archivo</dt><dd><code>apps/web/src/features/auth/ProtectedRoute.tsx</code></dd><dt>Líneas</dt><dd>5-21</dd><dt>Qué verás</dt><dd>Ruta guardián con <code>&lt;Outlet /&gt;</code> y estado de carga mientras se restaura la sesión</dd></dl></div>
+          </dd>
+          <dt>8. Conceptos previos</dt><dd>Renderizado en cliente (CSR) frente a SSR, layout routes y <code>Outlet</code>, Context API, StrictMode (doble ejecución de efectos en desarrollo), <code>useEffect</code>, <code>useMemo</code>/<code>useCallback</code>.</dd>
+          <dt>9. Alternativas</dt><dd>Next.js (SSR y full-stack), Remix / React Router en modo framework, TanStack Router.</dd>
+          <dt>10. Ventajas y límites aquí</dt><dd>Límite verificado: <strong>no hay lazy loading</strong> (<code>React.lazy</code> no aparece) y todas las páginas se importan de forma estática en <code>router.tsx</code>, aunque <code>.claude/CLAUDE.md</code> lo pide como práctica. <span class="tag tag--noencontrado">No encontrado</span></dd>
+          <dt>11. Errores comunes</dt><dd>Efectos que se ejecutan dos veces en StrictMode y disparan peticiones duplicadas (el proyecto lo documenta y lo evita); redirecciones antes de saber si hay sesión (por eso existe <code>isLoading</code>).</dd>
+          <dt>12. En una entrevista</dt><dd>«Es una SPA con Vite. El enrutamiento es declarativo y no carga datos; de eso se encarga TanStack Query. Las rutas privadas cuelgan de una layout route que espera a que termine la restauración silenciosa de la sesión.»</dd>
+        </dl>
+      </details>
+
+      <!-- TanStack Query -->
+      <details class="card tech-card">
+        <summary>TanStack Query 5 <span class="tag tag--verificado">Verificado</span><span class="tech-card__role">Estado del servidor, caché e invalidación</span></summary>
+        <dl class="qa-grid">
+          <dt>1. ¿Qué es?</dt><dd>Librería que gestiona datos remotos: caché, reintentos, deduplicación, estados de carga y error, e invalidación.</dd>
+          <dt>2. ¿Qué problema resuelve?</dt><dd>Evita guardar datos del servidor en <code>useState</code> o Redux y sincronizarlos a mano.</dd>
+          <dt>3. Función en Vectra</dt><dd>Cada feature define una <em>query key factory</em> (<code>*.keys.ts</code>) y hooks (<code>use-*.ts</code>). Las mutaciones invalidan varias features a la vez porque los datos están relacionados (un cambio de precio afecta a la categoría y a los escenarios).</dd>
+          <dt>4. Integración</dt><dd>Llama a las funciones de <code>*.api.ts</code>, que a su vez usan <code>apiRequest</code>. Al cerrar sesión se ejecuta <code>queryClient.clear()</code>. Configuración global: <code>staleTime</code> 30 s y <code>retry: 1</code>.</dd>
+          <dt>5. ¿Por qué encaja?</dt><dd>ADR-0001: «data fetching, cache y sincronización». En <code>router.tsx</code> 17-19 se documenta que es la única fuente de estado del servidor.</dd>
+          <dt>6. Evidencia</dt><dd><code>apps/web/src/lib/query-client.ts</code>, <code>features/*/use-*.ts</code>, <code>features/*/*.keys.ts</code>.</dd>
+          <dt>7. Dónde estudiarla</dt><dd>
+            <div class="ref"><dl><dt>Archivo</dt><dd><code>apps/web/src/features/expense-items/use-expense-items.ts</code></dd><dt>Líneas</dt><dd>32-39 y 41-80</dd><dt>Qué verás</dt><dd>Invalidación cruzada de productos, categorías y escenarios</dd></dl></div>
+            <div class="ref"><dl><dt>Archivo</dt><dd><code>apps/web/src/features/expense-items/expense-items.keys.ts</code></dd><dt>Líneas</dt><dd>3-10</dd><dt>Qué verás</dt><dd>Claves jerárquicas: invalidar <code>all</code> invalida listas, detalles y resúmenes</dd></dl></div>
+          </dd>
+          <dt>8. Conceptos previos</dt><dd>Estado del servidor frente a estado de UI, <code>staleTime</code> frente a <code>gcTime</code>, query keys jerárquicas, invalidación frente a actualización optimista.</dd>
+          <dt>9. Alternativas</dt><dd>SWR, RTK Query, loaders de React Router, Apollo (si fuera GraphQL).</dd>
+          <dt>10. Ventajas y límites aquí</dt><dd>Ventaja: invalidar de forma amplia es simple y difícil de olvidar. Límite: invalidar <code>scenariosKeys.all</code> en cada mutación de productos provoca más refetch de lo estrictamente necesario. No hay actualizaciones optimistas. <span class="tag tag--inferido">Inferido</span></dd>
+          <dt>11. Errores comunes</dt><dd>Claves que no incluyen los parámetros de la consulta (aquí <code>list(query)</code> sí los incluye); olvidar limpiar la caché al cambiar de usuario (aquí se hace).</dd>
+          <dt>12. En una entrevista</dt><dd>«Separé estado del servidor y estado de UI. Cada feature tiene su factory de query keys y, como el dominio está interrelacionado, una mutación de producto invalida productos, categorías y escenarios.»</dd>
+        </dl>
+      </details>
+
+      <!-- RHF -->
+      <details class="card tech-card">
+        <summary>React Hook Form <span class="tag tag--verificado">Verificado</span><span class="tech-card__role">Formularios con validación Zod</span></summary>
+        <dl class="qa-grid">
+          <dt>1. ¿Qué es?</dt><dd>Librería de formularios basada en inputs no controlados, con pocos re-renders.</dd>
+          <dt>2. ¿Qué problema resuelve?</dt><dd>Manejar el estado de cada campo, los errores, el envío y el reset sin escribir ese boilerplate en cada formulario.</dd>
+          <dt>3. Función en Vectra</dt><dd>Todos los diálogos de crear y editar (producto, categoría, ingreso, escenario) usan <code>useForm</code> + <code>zodResolver</code> y el componente <code>FormDialog</code> de <code>@vectra/ui</code>.</dd>
+          <dt>4. Integración</dt><dd>El schema del formulario deriva del schema compartido (<code>createExpenseItemBodySchema.omit(...).extend(...)</code>). Los conflictos <code>DUPLICATE_NAME</code> de la API se muestran bajo el campo con <code>form.setError</code> (<code>lib/form-errors.ts</code> 14-25).</dd>
+          <dt>5. ¿Por qué encaja?</dt><dd>ADR-0001 lo elige junto a Zod. <span class="tag tag--documentado">Documentado</span></dd>
+          <dt>6. Evidencia</dt><dd><code>apps/web/src/features/expense-items/ExpenseItemFormDialog.tsx</code> 46-146.</dd>
+          <dt>7. Dónde estudiarla</dt><dd><div class="ref"><dl><dt>Archivo</dt><dd><code>apps/web/src/features/expense-items/ExpenseItemFormDialog.tsx</code></dd><dt>Símbolo</dt><dd><code>onSubmit</code>, líneas 116-146</dd><dt>Qué verás</dt><dd>Validación del monto, mutación, toast y manejo del error de conflicto</dd></dl></div></dd>
+          <dt>8. Conceptos previos</dt><dd>Inputs controlados frente a no controlados, resolvers, <code>setError</code>, <code>reset</code> al abrir un diálogo.</dd>
+          <dt>9. Alternativas</dt><dd>Formik, TanStack Form, Conform, o <code>useState</code> manual.</dd>
+          <dt>10. Ventajas y límites aquí</dt><dd>El monto se maneja como <code>string</code> en el formulario y se valida con <code>moneyAmountSchema</code> al enviar, un rodeo para no pelear con inputs numéricos.</dd>
+          <dt>11. Errores comunes</dt><dd>No resetear el formulario al reabrir el diálogo con otra entidad (aquí se hace con <code>useEffect</code>, líneas 105-114); mostrar el <code>message</code> técnico del backend en vez de un texto para el usuario.</dd>
+          <dt>12. En una entrevista</dt><dd>«Los formularios derivan su schema del contrato compartido. Si la API responde <code>DUPLICATE_NAME</code>, el error aparece bajo el campo de nombre en lugar de en un toast genérico.»</dd>
+        </dl>
+      </details>
+
+      <!-- Tailwind + shadcn -->
+      <details class="card tech-card">
+        <summary>Tailwind CSS v4 + shadcn/ui (Radix) <span class="tag tag--verificado">Verificado</span><span class="tech-card__role">Sistema visual y componentes accesibles</span></summary>
+        <dl class="qa-grid">
+          <dt>1. ¿Qué es?</dt><dd>Tailwind: CSS utility-first (v4 se configura en CSS con <code>@theme</code>). shadcn/ui: componentes que se copian al repo, construidos sobre primitivas accesibles de Radix.</dd>
+          <dt>2. ¿Qué problema resuelve?</dt><dd>Consistencia visual mediante tokens, y diálogos, menús y selects accesibles (foco, teclado, ARIA) sin implementarlos desde cero.</dd>
+          <dt>3. Función en Vectra</dt><dd>Los componentes viven en <code>packages/ui/src/components/ui/</code>. Los tokens de color, incluido el modo oscuro con la clase <code>.dark</code>, y la utilidad <code>glass</code> están en <code>apps/web/src/index.css</code>.</dd>
+          <dt>4. Integración</dt><dd>Plugin <code>@tailwindcss/vite</code>. <code>ThemeProvider</code> aplica la clase <code>dark</code>, y un script inline en <code>index.html</code> la aplica antes de montar React para evitar el parpadeo de tema.</dd>
+          <dt>5. ¿Por qué encaja?</dt><dd>ADR-0001 y la sección «Diseño UI» de <code>.claude/CLAUDE.md</code>. La identidad visual (RFC-0029) está documentada en <code>docs/resumen.md</code>.</dd>
+          <dt>6. Evidencia</dt><dd>Radix verificado: alert-dialog, checkbox, dialog, dropdown-menu, label, select, separator y slot.</dd>
+          <dt>7. Dónde estudiarla</dt><dd>
+            <div class="ref"><dl><dt>Archivo</dt><dd><code>packages/ui/src/theme/ThemeProvider.tsx</code></dd><dt>Líneas</dt><dd>24-55</dd><dt>Qué verás</dt><dd>Tema <code>light/dark/system</code> persistido en <code>localStorage</code> y escuchando <code>prefers-color-scheme</code></dd></dl></div>
+            <div class="ref"><dl><dt>Archivo</dt><dd><code>apps/web/src/index.css</code></dd><dt>Líneas</dt><dd>449-453 (<code>@utility glass</code>), 467 (reduced motion)</dd><dt>Qué verás</dt><dd>Tokens CSS y accesibilidad de movimiento</dd></dl></div>
+          </dd>
+          <dt>8. Conceptos previos</dt><dd>Design tokens (CSS custom properties), especificidad, <code>@layer</code>, WAI-ARIA, gestión del foco en modales, contraste WCAG.</dd>
+          <dt>9. Alternativas</dt><dd>CSS Modules, styled-components, MUI, Chakra, Mantine.</dd>
+          <dt>10. Ventajas y límites aquí</dt><dd><code>DataTable</code> de <code>@vectra/ui</code> ya no tiene consumidores en la web desde RFC-0027. <span class="tag tag--verificado">Verificado: 0 usos</span></dd>
+          <dt>11. Errores comunes</dt><dd>Clases <code>dark:</code> dispersas (aquí se evitan y el tema vive en los tokens), <code>transition-all</code>, colores fijos que rompen el modo oscuro.</dd>
+          <dt>12. En una entrevista</dt><dd>«El tema vive en tokens CSS; los componentes no conocen el modo oscuro. Para accesibilidad me apoyo en Radix y respeto <code>prefers-reduced-motion</code>.»</dd>
+        </dl>
+      </details>
+
+      <!-- Monorepo -->
+      <details class="card tech-card">
+        <summary>pnpm workspaces + Turborepo <span class="tag tag--verificado">Verificado</span><span class="tech-card__role">Monorepo y orquestación de tareas</span></summary>
+        <dl class="qa-grid">
+          <dt>1. ¿Qué es?</dt><dd>pnpm enlaza paquetes locales (<code>workspace:*</code>); Turborepo ejecuta tareas (build, lint, test) respetando las dependencias entre paquetes y cacheando resultados.</dd>
+          <dt>2. ¿Qué problema resuelve?</dt><dd>Compartir código entre frontend y backend sin publicarlo en npm, y construir en el orden correcto.</dd>
+          <dt>3. Función en Vectra</dt><dd>Cuatro paquetes internos. En <code>turbo.json</code>, <code>test</code> y <code>typecheck</code> dependen de <code>^build</code> porque <code>@vectra/types</code> se consume compilado (<code>main: ./dist/index.js</code>).</dd>
+          <dt>4. Integración</dt><dd><code>pnpm dev</code> usa <code>concurrently</code> para levantar API y web; <code>dev:turbo</code> es la variante con Turbo. Hay un commit que esquiva el binario nativo de Turbo en Windows (<code>1d33469</code>).</dd>
+          <dt>5. ¿Por qué encaja?</dt><dd><span class="tag tag--inferido">Inferido</span>: permite compartir <code>toMonthlyEquivalent</code>, para que la misma fórmula calcule en servidor y cliente, y el catálogo de <code>ErrorCode</code>.</dd>
+          <dt>6. Evidencia</dt><dd><code>pnpm-workspace.yaml</code>, <code>turbo.json</code>, <code>package.json</code> raíz.</dd>
+          <dt>7. Dónde estudiarla</dt><dd><div class="ref"><dl><dt>Archivo</dt><dd><code>packages/utils/src/projections.ts</code></dd><dt>Líneas</dt><dd>9-35</dd><dt>Qué verás</dt><dd>Fórmula única de prorrateo mensual y proyección 6/12 meses</dd></dl></div></dd>
+          <dt>8. Conceptos previos</dt><dd>Grafo de dependencias, <code>dependsOn: ["^build"]</code>, caché de tareas, hoisting en pnpm, <code>allowBuilds</code> para scripts nativos.</dd>
+          <dt>9. Alternativas</dt><dd>Nx, npm o yarn workspaces, repositorios separados con paquetes publicados.</dd>
+          <dt>10. Ventajas y límites aquí</dt><dd>Límite: la API no reutiliza los schemas de <code>@vectra/types</code>, así que el beneficio de compartir el contrato es parcial.</dd>
+          <dt>11. Errores comunes</dt><dd>Olvidar compilar el paquete compartido antes de typecheck o test; versiones distintas de una misma dependencia entre paquetes.</dd>
+          <dt>12. En una entrevista</dt><dd>«El monorepo me permite compartir tipos y fórmulas financieras entre cliente y servidor, de modo que un total mensual se calcule de la misma forma en los dos lados.»</dd>
+        </dl>
+      </details>
+
+      <!-- Testing -->
+      <details class="card tech-card">
+        <summary>Vitest + Supertest + Testing Library + MSW <span class="tag tag--verificado">Verificado</span><span class="tech-card__role">Pruebas automatizadas</span></summary>
+        <dl class="qa-grid">
+          <dt>1. ¿Qué es?</dt><dd>Vitest: test runner. Supertest: peticiones HTTP contra un servidor. Testing Library: pruebas de componentes desde el punto de vista del usuario. MSW: intercepta peticiones de red y responde con datos simulados.</dd>
+          <dt>2. ¿Qué problema resuelve?</dt><dd>Comprobar el comportamiento real de los endpoints y de la UI sin depender de un navegador ni de una API viva.</dd>
+          <dt>3. Función en Vectra</dt><dd>API: 59 tests de integración que pasan por HTTP real y usan un Postgres de pruebas (<code>.env.test</code>), sin paralelismo entre archivos. Web: 1 test de <code>CategoriesPage</code>.</dd>
+          <dt>4. Integración</dt><dd>Los tests construyen la app con <code>buildApp()</code> y crean usuarios mediante <code>/auth/register</code> (<code>tests/helpers/test-user.ts</code>), así ejercitan el mismo flujo que un cliente real.</dd>
+          <dt>5. ¿Por qué encaja?</dt><dd>ADR-0001; la regla «tests solo cuando aporten valor» de <code>.claude/CLAUDE.md</code>. <span class="tag tag--documentado">Documentado</span></dd>
+          <dt>6. Evidencia</dt><dd><code>apps/api/tests/*.test.ts</code> (categories 4, expense-items 17, incomes 11, scenarios 27), <code>apps/web/tests/features/categories/CategoriesPage.test.tsx</code>.</dd>
+          <dt>7. Dónde estudiarla</dt><dd>
+            <div class="ref"><dl><dt>Archivo</dt><dd><code>apps/api/tests/scenarios.test.ts</code></dd><dt>Líneas</dt><dd>374-428</dd><dt>Qué verás</dt><dd>Un test que documenta todo el flujo de impacto: cambio de precio, escenario afectado, pendiente y sincronización</dd></dl></div>
+            <div class="ref"><dl><dt>Archivo</dt><dd><code>apps/api/vitest.config.ts</code></dd><dt>Líneas</dt><dd>3-11</dd><dt>Qué verás</dt><dd><code>fileParallelism: false</code> y su justificación</dd></dl></div>
+          </dd>
+          <dt>8. Conceptos previos</dt><dd>Pruebas de integración frente a unitarias, aislamiento de datos, fixtures, <code>onUnhandledRequest: "error"</code> en MSW.</dd>
+          <dt>9. Alternativas</dt><dd>Jest, Playwright (E2E), Testcontainers para levantar Postgres por test.</dd>
+          <dt>10. Ventajas y límites aquí</dt><dd><strong>No hay tests de autenticación</strong>: no existe <code>auth.test.ts</code>, aunque el flujo de registro se usa indirectamente. Tampoco hay tests unitarios de <code>assignCategoryColors</code> ni E2E. Sin CI, los tests dependen de que alguien los ejecute en local. <span class="tag tag--noencontrado">No encontrado</span></dd>
+          <dt>11. Errores comunes</dt><dd>Tests que comparten estado (aquí se crea un usuario por suite y se limpia en <code>afterAll</code>); ejecutar en paralelo contra la misma base.</dd>
+          <dt>12. En una entrevista</dt><dd>«Priorizo tests de integración HTTP contra una base real. Los nombres de los tests de escenarios funcionan como especificación ejecutable de las reglas de sincronización.»</dd>
+        </dl>
+      </details>
+
+      <!-- Swagger -->
+      <details class="card tech-card">
+        <summary>OpenAPI / Swagger <span class="tag tag--verificado">Verificado</span><span class="tech-card__role">Contrato y documentación de la API</span></summary>
+        <dl class="qa-grid">
+          <dt>1. ¿Qué es?</dt><dd>OpenAPI es un estándar para describir APIs REST; Swagger UI es una interfaz web para explorarlas.</dd>
+          <dt>2. ¿Qué problema resuelve?</dt><dd>Mantener una documentación de endpoints, entradas y salidas que no quede desactualizada.</dd>
+          <dt>3. Función en Vectra</dt><dd>Se genera OpenAPI 3.1 desde los schemas Zod (<code>jsonSchemaTransform</code>) y se sirve en <code>/docs</code>. Define el esquema de seguridad <code>bearerAuth</code>, y cada ruta declara <code>tags</code>, <code>summary</code> y respuestas por status.</dd>
+          <dt>4. Integración</dt><dd>Plugin <code>swaggerPlugin</code> registrado en <code>buildApp</code> después de auth.</dd>
+          <dt>5. ¿Por qué encaja?</dt><dd>ADR-0001, sección «Extras». <span class="tag tag--documentado">Documentado</span></dd>
+          <dt>6. Evidencia</dt><dd><code>apps/api/src/plugins/swagger.ts</code> 6-32.</dd>
+          <dt>7. Dónde estudiarla</dt><dd>Ese mismo archivo y cualquier objeto <code>schema</code> de una ruta.</dd>
+          <dt>8. Conceptos previos</dt><dd>JSON Schema, security schemes, design-first frente a code-first (aquí es code-first).</dd>
+          <dt>9. Alternativas</dt><dd>Contratos tRPC o ts-rest, GraphQL con introspección.</dd>
+          <dt>10. Ventajas y límites aquí</dt><dd>La UI de documentación se expone sin condición de entorno. <span class="tag tag--inferido">Inferido</span>: en producción podría convenir protegerla o desactivarla. La descripción todavía dice «finance tracker».</dd>
+          <dt>11. Errores comunes</dt><dd>Documentar a mano y que se desincronice; exponer la documentación de endpoints internos.</dd>
+          <dt>12. En una entrevista</dt><dd>«La documentación es un subproducto de la validación: los schemas Zod de cada ruta generan el OpenAPI.»</dd>
+        </dl>
+      </details>
+
+      <!-- Hardening -->
+      <details class="card tech-card">
+        <summary>@fastify/helmet · cors · rate-limit <span class="tag tag--verificado">Verificado</span><span class="tech-card__role">Endurecimiento HTTP</span></summary>
+        <dl class="qa-grid">
+          <dt>1. ¿Qué es?</dt><dd>Helmet añade cabeceras de seguridad; CORS controla qué orígenes pueden llamar a la API desde el navegador; rate-limit limita las peticiones por IP.</dd>
+          <dt>2. ¿Qué problema resuelve?</dt><dd>Clickjacking y sniffing de MIME (helmet), llamadas no autorizadas desde otros orígenes (CORS), fuerza bruta y abuso (rate-limit).</dd>
+          <dt>3. Función en Vectra</dt><dd>CORS con un único origen configurable, <code>credentials: true</code> y métodos explícitos. Rate-limit global de 100 peticiones por minuto (desactivado en tests) y de 10 por minuto en <code>/auth/register</code> y <code>/auth/login</code>. <code>/health</code> no consume cupo.</dd>
+          <dt>4. Integración</dt><dd>Registrados en <code>app.ts</code> 44-57; la regla estricta está en <code>auth.routes.ts</code> 35-37.</dd>
+          <dt>5. ¿Por qué encaja?</dt><dd>La sección «Seguridad» de <code>.claude/CLAUDE.md</code> pide rate limiting desde el inicio. <span class="tag tag--documentado">Documentado</span></dd>
+          <dt>6. Evidencia</dt><dd>Ver archivos citados. Los 429 se traducen a <code>RATE_LIMITED</code> en <code>error-handler.ts</code> 67-72.</dd>
+          <dt>7. Dónde estudiarla</dt><dd><code>apps/api/src/app.ts</code> 44-57.</dd>
+          <dt>8. Conceptos previos</dt><dd>Same-origin policy, preflight <code>OPTIONS</code>, <code>Access-Control-Allow-Credentials</code>, ventanas fijas de rate limiting, IP detrás de un proxy (<code>trustProxy</code>).</dd>
+          <dt>9. Alternativas</dt><dd>Rate limiting en un API gateway o CDN, o con Redis para tener un límite compartido entre instancias.</dd>
+          <dt>10. Ventajas y límites aquí</dt><dd><span class="tag tag--inferido">Inferido</span>: el rate-limit usa memoria del proceso (no hay Redis configurado), así que con varias instancias cada una cuenta por separado. Tampoco se configura <code>trustProxy</code>; detrás de un proxy en producción, la IP podría ser la del proxy. <span class="tag tag--pendiente">Pendiente de verificar en un deploy</span></dd>
+          <dt>11. Errores comunes</dt><dd>Usar <code>origin: "*"</code> junto con <code>credentials</code> (los navegadores lo rechazan); aplicar el límite a los health checks.</dd>
+          <dt>12. En una entrevista</dt><dd>«Las rutas de autenticación tienen un límite más estricto porque hacen trabajo de bcrypt y son el objetivo del credential stuffing.»</dd>
+        </dl>
+      </details>
+
+      <h3>Tecnologías de apoyo (uso verificado, sin ficha completa)</h3>
+      <ul>
+        <li><strong>Sonner</strong>: toasts de éxito y error; 22 archivos lo usan. <span class="tag tag--verificado">Verificado</span></li>
+        <li><strong>Lucide React</strong>: iconografía; 31 archivos. <span class="tag tag--verificado">Verificado</span></li>
+        <li><strong>Framer Motion</strong>: solo en <code>ScenarioItemsSection.tsx</code> y <code>ScenarioProductChecklist.tsx</code>. Contiene un comentario largo sobre un problema con <code>AnimatePresence</code> en framer-motion 11.15 con React 19 (líneas 223-237). <span class="tag tag--verificado">Verificado</span></li>
+        <li><strong>pino-pretty</strong>: logs legibles en desarrollo; en producción se usa el logger JSON por defecto (<code>app.ts</code> 24-33). <span class="tag tag--verificado">Verificado</span></li>
+        <li><strong>ESLint + Prettier + Husky + lint-staged</strong>: <code>pre-commit</code> ejecuta <code>pnpm lint-staged</code>. <span class="tag tag--verificado">Verificado</span></li>
+      </ul>
+      <h3>Declaradas sin uso o no encontradas</h3>
+      <ul>
+        <li><strong>Recharts</strong>: dependencia en <code>apps/web/package.json</code> sin imports; la usaba el dashboard retirado. <span class="tag tag--configurado">Configurado sin uso</span></li>
+        <li><strong>Docker / Docker Compose, CI, Vercel, Railway, Neon</strong>: solo aparecen en el ADR-0001. <span class="tag tag--documentado">Documentado</span> <span class="tag tag--noencontrado">No encontrado</span></li>
+      </ul>
+    </section>
+
+    <!-- ===================================================== -->
+    <section class="doc-section" id="flujos" aria-labelledby="h-flujos">
+      <h2 id="h-flujos">5. Flujos reales</h2>
+
+      <h3 id="flujo-auth">5.1 Sesión: login, restauración silenciosa y renovación del token</h3>
+      <figure class="diagram">
+        <svg viewBox="0 0 900 470" role="img" aria-labelledby="seq-title seq-desc">
+          <title id="seq-title">Secuencia de renovación del access token</title>
+          <desc id="seq-desc">Un hook de TanStack Query llama a apiRequest; la API responde 401; el cliente hace un único POST /auth/refresh con la cookie; el servicio busca el hash, revoca el token anterior y emite uno nuevo en una transacción; el cliente reintenta la petición original y obtiene 200.</desc>
+          <defs>
+            <marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" class="d-arrowhead"/>
+            </marker>
+          </defs>
+          <rect class="d-box" x="20" y="10" width="170" height="40" rx="6"/><text class="d-title" x="35" y="35">Hook (useQuery)</text>
+          <rect class="d-accent" x="250" y="10" width="170" height="40" rx="6"/><text class="d-title" x="268" y="35">api-client.ts</text>
+          <rect class="d-box" x="480" y="10" width="170" height="40" rx="6"/><text class="d-title" x="495" y="35">Fastify /auth</text>
+          <rect class="d-box" x="710" y="10" width="170" height="40" rx="6"/><text class="d-title" x="725" y="35">PostgreSQL</text>
+          <line class="d-life" x1="105" y1="50" x2="105" y2="460"/>
+          <line class="d-life" x1="335" y1="50" x2="335" y2="460"/>
+          <line class="d-life" x1="565" y1="50" x2="565" y2="460"/>
+          <line class="d-life" x1="795" y1="50" x2="795" y2="460"/>
+
+          <path class="d-line" d="M105 80 H330" marker-end="url(#arrow2)"/><text class="d-small" x="115" y="74">1 apiRequest(GET /scenarios)</text>
+          <path class="d-line" d="M335 110 H560" marker-end="url(#arrow2)"/><text class="d-small" x="345" y="104">2 Authorization: Bearer (expirado)</text>
+          <path class="d-dash" d="M565 140 H340" marker-end="url(#arrow2)"/><text class="d-small" x="380" y="134">3 401 UNAUTHENTICATED</text>
+          <path class="d-line" d="M335 180 H560" marker-end="url(#arrow2)"/><text class="d-small" x="345" y="174">4 POST /auth/refresh (cookie)</text>
+          <text class="d-small" x="345" y="196">refreshPromise ??= … (single-flight)</text>
+          <path class="d-line" d="M565 225 H790" marker-end="url(#arrow2)"/><text class="d-small" x="575" y="219">5 findUnique(sha256(token))</text>
+          <path class="d-line" d="M565 265 H790" marker-end="url(#arrow2)"/><text class="d-small" x="575" y="259">6 $transaction: revoke + create</text>
+          <path class="d-dash" d="M565 305 H340" marker-end="url(#arrow2)"/><text class="d-small" x="350" y="299">7 200 accessToken + Set-Cookie</text>
+          <path class="d-line" d="M335 345 H560" marker-end="url(#arrow2)"/><text class="d-small" x="345" y="339">8 reintento con token nuevo</text>
+          <path class="d-dash" d="M565 385 H340" marker-end="url(#arrow2)"/><text class="d-small" x="400" y="379">9 200 datos</text>
+          <path class="d-dash" d="M335 425 H110" marker-end="url(#arrow2)"/><text class="d-small" x="120" y="419">10 datos re-validados con Zod</text>
+        </svg>
+        <figcaption>Si el paso 4 falla, <code>api-client</code> borra el token, avisa a <code>AuthProvider</code> mediante <code>onSessionExpired</code> y este redirige a <code>/login</code>. Si llega a la API un refresh token que ya estaba revocado, la API revoca todas las sesiones del usuario (detección de robo).</figcaption>
+      </figure>
+
+      <div class="table-wrap"><table>
+        <thead><tr><th scope="col">Paso</th><th scope="col">Qué ocurre</th><th scope="col">Dónde</th></tr></thead>
+        <tbody>
+          <tr><td>Disparador</td><td>El usuario envía el formulario de login, o simplemente abre la app (restauración silenciosa con <code>refreshRequest()</code> al montar)</td><td><code>apps/web/src/features/auth/AuthProvider.tsx</code> 23-36, 47-51</td></tr>
+          <tr><td>Recepción</td><td><code>POST /auth/login</code> con rate limit de 10 por minuto</td><td><code>apps/api/src/features/auth/auth.routes.ts</code> 60-79</td></tr>
+          <tr><td>Validación</td><td>Email en minúsculas; contraseña de 8 a 72 caracteres en el registro</td><td><code>auth.schemas.ts</code> 5-21</td></tr>
+          <tr><td>Lógica</td><td><code>bcrypt.compare</code>; el mismo error para email inexistente y contraseña incorrecta (evita enumerar cuentas). Se emite el refresh token y se firma el JWT</td><td><code>auth.service.ts</code> 66-80</td></tr>
+          <tr><td>Datos</td><td>Inserción en <code>refresh_tokens</code> con el hash, no el token</td><td><code>auth.service.ts</code> 22-34</td></tr>
+          <tr><td>Respuesta</td><td><code>{ user, accessToken }</code> + cookie <code>vectra_refresh</code></td><td><code>auth.routes.ts</code> 71-78</td></tr>
+          <tr><td>Error</td><td><code>401 INVALID_CREDENTIALS</code>, que se muestra inline en el formulario (no en un toast)</td><td><code>docs/resumen.md</code> (Fase D) <span class="tag tag--documentado">Documentado</span></td></tr>
+        </tbody>
+      </table></div>
+
+<figure class="snippet">
+<figcaption><code>apps/api/src/features/auth/auth.service.ts</code> · líneas 95-103 · fragmento real</figcaption>
+<pre>  // A revoked token coming back means it was already rotated once: either a
+  // replayed request or a stolen token. Kill every session for this user.
+  if (stored.revokedAt) {
+    await prisma.refreshToken.updateMany({
+      where: { userId: stored.userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    throw unauthorized("UNAUTHENTICATED", "Refresh token reuse detected");
+  }</pre>
+<dl class="snippet__explain">
+  <dt>Qué hace</dt><dd>Si alguien presenta un refresh token que ya fue rotado, revoca todas las sesiones activas del usuario y responde 401.</dd>
+  <dt>Concepto</dt><dd><em>Refresh token rotation with reuse detection</em>, recomendado por OAuth 2.0 Security BCP. Un token legítimo solo se usa una vez; verlo dos veces indica que alguien más lo tiene.</dd>
+  <dt>Qué aprender</dt><dd>La seguridad se apoya en el estado (<code>revokedAt</code>), lo que convierte el refresh en una operación stateful a propósito, a diferencia del JWT.</dd>
+</dl>
+</figure>
+
+<figure class="snippet">
+<figcaption><code>apps/web/src/lib/api-client.ts</code> · líneas 43-68 (extracto) · fragmento real</figcaption>
+<pre>// Concurrency guard: several requests can 401 at nearly the same moment
+// (e.g. a screen firing multiple queries right as the access token expires).
+// Only the first one actually calls /auth/refresh; the rest await its result.
+let refreshPromise: Promise&lt;string&gt; | null = null;
+
+function refreshAccessToken(): Promise&lt;string&gt; {
+  refreshPromise ??= performRefresh().finally(() =&gt; {
+    refreshPromise = null;
+  });
+  return refreshPromise;
+}</pre>
+<dl class="snippet__explain">
+  <dt>Qué hace</dt><dd>Si cinco peticiones reciben 401 a la vez, solo la primera llama a <code>/auth/refresh</code> y las demás esperan la misma promesa.</dd>
+  <dt>Por qué importa aquí</dt><dd>Como el refresh token es de un solo uso, dos refresh en paralelo harían que el segundo pareciera una reutilización y la API cerraría todas las sesiones. Este patrón (<em>single-flight</em>) es imprescindible con la rotación del servidor.</dd>
+  <dt>Relación</dt><dd><code>performRequest</code> (líneas 94-149) reintenta la petición original una sola vez (<code>isRetry</code>) y nunca reintenta <code>/auth/*</code>.</dd>
+</dl>
+</figure>
+
+      <h3 id="flujo-impacto">5.2 Editar el precio de un producto y propagarlo a los escenarios</h3>
+      <p>Es el flujo más característico del proyecto (RFC-0023.3). El producto <strong>siempre se guarda</strong>; lo que se decide después es si los escenarios que lo usan se actualizan.</p>
+      <figure class="diagram">
+        <svg viewBox="0 0 900 210" role="img" aria-labelledby="imp-title imp-desc">
+          <title id="imp-title">Flujo de impacto en escenarios</title>
+          <desc id="imp-desc">Formulario, PATCH, guardar, reconciliar snapshots, respuesta con affectedScenarios, diálogo y sync opcional.</desc>
+          <defs>
+            <marker id="arrow3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" class="d-arrowhead"/>
+            </marker>
+          </defs>
+          <rect class="d-box" x="10" y="20" width="150" height="70" rx="6"/>
+          <text class="d-title" x="20" y="44">1 Formulario</text><text class="d-text" x="20" y="62">RHF + Zod</text><text class="d-small" x="20" y="78">ExpenseItemFormDialog</text>
+          <rect class="d-box" x="190" y="20" width="150" height="70" rx="6"/>
+          <text class="d-title" x="200" y="44">2 PATCH</text><text class="d-text" x="200" y="62">/expense-items/:id</text><text class="d-small" x="200" y="78">findOwnedOrFail</text>
+          <rect class="d-accent" x="370" y="20" width="170" height="70" rx="6"/>
+          <text class="d-title" x="380" y="44">3 update + reconcile</text><text class="d-text" x="380" y="62">nombres → sync inmediato</text><text class="d-text" x="380" y="78">precio → solo se reporta</text>
+          <rect class="d-box" x="570" y="20" width="150" height="70" rx="6"/>
+          <text class="d-title" x="580" y="44">4 Respuesta</text><text class="d-text" x="580" y="62">data + changes</text><text class="d-small" x="580" y="78">affectedScenarios[]</text>
+          <rect class="d-box" x="745" y="20" width="145" height="70" rx="6"/>
+          <text class="d-title" x="755" y="44">5 Diálogo</text><text class="d-text" x="755" y="62">si la lista no</text><text class="d-text" x="755" y="78">está vacía</text>
+          <path class="d-line" d="M160 55 H188" marker-end="url(#arrow3)"/>
+          <path class="d-line" d="M340 55 H368" marker-end="url(#arrow3)"/>
+          <path class="d-line" d="M540 55 H568" marker-end="url(#arrow3)"/>
+          <path class="d-line" d="M720 55 H743" marker-end="url(#arrow3)"/>
+          <rect class="d-accent" x="560" y="130" width="160" height="62" rx="6"/>
+          <text class="d-title" x="570" y="153">«Aplicar ahora»</text><text class="d-small" x="570" y="172">POST …/sync-scenarios</text>
+          <rect class="d-box" x="745" y="130" width="145" height="62" rx="6"/>
+          <text class="d-title" x="755" y="153">«No ahora»</text><text class="d-text" x="755" y="172">hasUpdates: true</text>
+          <path class="d-line" d="M790 90 L660 128" marker-end="url(#arrow3)"/>
+          <path class="d-line" d="M815 90 L815 128" marker-end="url(#arrow3)"/>
+        </svg>
+        <figcaption>Explicación: la API distingue cambios <em>visuales</em> (renombrar un producto o su categoría, que se sincronizan solos porque no mueven totales) de cambios <em>financieros</em> (precio, frecuencia sin override, archivado), que solo se reportan. El frontend abre <code>ScenarioImpactDialog</code> si hay escenarios afectados. Rechazar no cuesta nada: el escenario lo mostrará como «cambio pendiente».</figcaption>
+      </figure>
+
+      <ol class="route">
+        <li><strong>Inicio</strong>: el usuario edita un producto en <code>ExpenseItemFormDialog</code> → <code>onSubmit</code> (116-146) → <code>useUpdateExpenseItem().mutateAsync</code>.</li>
+        <li><strong>Recepción</strong>: <code>PATCH /expense-items/:id</code> con hook de autenticación (<code>expense-items.routes.ts</code> 31 y 96-115). Zod valida <code>updateExpenseItemBodySchema</code>.</li>
+        <li><strong>Validación de negocio</strong>: la propiedad se comprueba con <code>findOwnedOrFail</code>; la categoría debe existir, no estar archivada y ser de tipo <code>EXPENSE</code> (<code>assertCategoryUsable</code>, 44-61); el nombre debe ser único entre los activos sin distinguir mayúsculas (<code>assertNameAvailable</code>, 25-42).</li>
+        <li><strong>Persistencia</strong>: <code>prisma.expenseItem.update</code> y <code>finalizeExpenseItemWrite</code> (120-127) → <code>reconcileExpenseItemScenarios</code> (<code>scenarios.service.ts</code> 1129-1179).</li>
+        <li><strong>Lógica</strong>: para cada <code>ScenarioItem</code> no archivado, <code>diffItemKinds</code> (496-512) compara el snapshot con el producto vivo. Los cambios visuales se actualizan en lote dentro de una <code>$transaction</code>; los financieros se acumulan. Después <code>collectAncestorScenarioIds</code> (904-927) sube por la composición para encontrar también los escenarios padre.</li>
+        <li><strong>Respuesta</strong>: <code>{ data, affectedScenarios, changes }</code>; cada cambio lleva <code>from</code>/<code>to</code>, con <code>from: null</code> si los snapshots tenían valores distintos (<code>collapseFrom</code>, 965-972).</li>
+        <li><strong>Frontend</strong>: <code>useScenarioImpact.report</code> abre el diálogo (<code>use-scenario-impact.ts</code> 37-41). «Aplicar ahora» → <code>syncExpenseItemScenarios</code> (1186-1234), que <strong>vuelve a detectar</strong> los cambios en el servidor en lugar de confiar en la lista del cliente.</li>
+        <li><strong>Errores</strong>: <code>DUPLICATE_NAME</code> aparece bajo el campo de nombre; el resto llega como toast con texto de <code>getErrorMessage(error, "expenseItem")</code>.</li>
+      </ol>
+
+<figure class="snippet">
+<figcaption><code>apps/api/src/features/scenarios/scenarios.service.ts</code> · líneas 496-512 · fragmento real</figcaption>
+<pre>function diffItemKinds(item: ScenarioItem, expenseItem: ExpenseItemWithCategory): ItemDiffKind[] {
+  if (expenseItem.archivedAt) {
+    return ["archived"];
+  }
+  const kinds: ItemDiffKind[] = [];
+  if (item.name !== expenseItem.name) kinds.push("renamed");
+  if (item.categoryName !== expenseItem.category.name) kinds.push("categoryRenamed");
+  if (Number(item.amount) !== Number(expenseItem.amount)) kinds.push("priceChanged");
+  if (!item.frequencyOverride &amp;&amp; item.frequency !== expenseItem.frequency) {
+    kinds.push("frequencyChanged");
+  }
+  return kinds;
+}</pre>
+<dl class="snippet__explain">
+  <dt>Qué hace</dt><dd>Compara campo por campo el snapshot con su fuente viva. Es una función <strong>pura</strong>, sin acceso a la base. (El fragmento omite dos comentarios del original.)</dd>
+  <dt>Concepto</dt><dd><em>Single source of truth</em> para la detección de deriva: la usan el indicador <code>outdated</code>, <code>hasUpdates</code>, la reconciliación y la sincronización, así que no pueden contradecirse.</dd>
+  <dt>Qué aprender</dt><dd><code>frequencyOverride</code> modela una intención del usuario (simular un producto anual aunque el real sea mensual), y esa intención se respeta en todos los caminos de sincronización.</dd>
+</dl>
+</figure>
+
+      <h3 id="flujo-composicion">5.3 Componer escenarios y detectar ciclos</h3>
+      <p><code>POST /scenarios/:id/compositions</code> → <code>addScenarioComposition</code> (<code>scenarios.service.ts</code> 419-451). Validaciones en orden: el padre existe, es del usuario y no está archivado; el padre no se incluye a sí mismo; el hijo existe, es del usuario y no está archivado; la composición no existe ya (<code>409 ALREADY_INCLUDED</code>); y no se forma un ciclo.</p>
+<figure class="snippet">
+<figcaption><code>apps/api/src/features/scenarios/scenarios.service.ts</code> · líneas 444-450 · fragmento real</figcaption>
+<pre>  // Adding parent -&gt; child creates a cycle if child already (transitively)
+  // includes parent (business rule: no direct or transitive cycles).
+  if (await reaches(prisma, childScenarioId, parentScenarioId)) {
+    throw badRequest("CYCLE_DETECTED", "This composition would create a cycle");
+  }
+
+  return prisma.scenarioComposition.create({ data: { parentScenarioId, childScenarioId } });</pre>
+<dl class="snippet__explain">
+  <dt>Concepto</dt><dd>Grafo dirigido acíclico (DAG). Agregar la arista padre→hijo crea un ciclo si ya existe un camino hijo→…→padre. <code>reaches</code> (372-393) lo comprueba con un recorrido en anchura (BFS) y un conjunto <code>visited</code>.</dd>
+  <dt>Limitaciones a conocer</dt><dd>(1) El BFS hace <strong>una consulta por nodo visitado</strong>, un patrón N+1 aceptable con pocos escenarios. (2) La comprobación y la inserción no van en una transacción serializable, así que dos composiciones simultáneas inversas podrían crear un ciclo. <span class="tag tag--inferido">Inferido</span> Es una buena pregunta de entrevista.</dd>
+</dl>
+</figure>
+
+      <h3 id="flujo-summary">5.4 Cálculo del resumen de un escenario</h3>
+      <p><code>GET /scenarios/:id/summary</code> → <code>getScenarioSummary</code> (1415-1487):</p>
+      <ol class="route">
+        <li><code>collectReachableScenarioIds</code> (875-896): el escenario y todos sus descendientes por composición.</li>
+        <li>Lee los <code>ScenarioItem</code> de todos esos escenarios (los <strong>gastos sí se heredan</strong>) y los <code>ScenarioIncome</code> solo del escenario raíz (los <strong>ingresos no se heredan</strong>, RFC-0023.1 §9).</li>
+        <li>Suma el equivalente mensual con <code>toMonthlyEquivalent</code> (anual ÷ 12, semanal × 52 ÷ 12); los <code>ONE_TIME</code> se suman aparte.</li>
+        <li>Cobertura: <code>consumedPercentage = monthly / totalIncomeMonthly × 100</code>, o <code>null</code> si no hay ingresos.</li>
+        <li><code>pendingChanges</code> sale de <code>detectScenarioChanges</code> (solo los financieros), y <code>hasUpdates = pendingChanges.length &gt; 0</code>. Nada de esto se guarda en la base.</li>
+      </ol>
+      <div class="callout callout--warn">
+        <span class="callout__title">Punto de rendimiento verificable</span>
+        <p><code>listScenarios</code> (55-89) calcula <code>monthly</code> para cada fila con <code>getScenarioMonthlyTotal</code>, que a su vez hace un BFS y otra consulta. Una página de 20 escenarios genera decenas de consultas. El comentario del código lo justifica como «una vez por página» frente a una llamada <code>/summary</code> por escenario desde el cliente. <span class="tag tag--verificado">Verificado</span></p>
+      </div>
+
+      <h3 id="flujo-errores">5.5 Manejo de errores de punta a punta</h3>
+      <ol class="route">
+        <li>El servicio lanza un <code>HttpError</code> tipado: <code>badRequest</code>, <code>unauthorized</code>, <code>notFound</code> o <code>conflict</code> (<code>apps/api/src/lib/http-errors.ts</code> 10-38).</li>
+        <li>El manejador global (<code>plugins/error-handler.ts</code> 28-80) distingue cuatro casos: errores de validación Zod (400 con <code>issues</code>), fallos de serialización de la respuesta (500), errores <code>HttpError</code> propios (se reenvía su mensaje) y cualquier otro error (se registra en el log y se responde con un mensaje fijo, <strong>en todos los entornos</strong>).</li>
+        <li>El sobre de error es <code>{ statusCode, error, code, message }</code>, donde <code>code</code> es un catálogo cerrado de 16 valores (<code>packages/types/src/errors.ts</code> 10-48).</li>
+        <li>El cliente convierte la respuesta en <code>ApiError</code>; un <code>code</code> desconocido se vuelve <code>null</code> (<code>api-client.ts</code> 76-92).</li>
+        <li><code>getErrorMessage(error, resource)</code> traduce <code>code</code> a un texto en español, con variantes por recurso (<code>lib/error-messages.ts</code> 80-85). El <code>message</code> en inglés nunca se muestra al usuario.</li>
+      </ol>
+    </section>
+
+    <!-- ===================================================== -->
+    <section class="doc-section" id="datos" aria-labelledby="h-datos">
+      <h2 id="h-datos">6. Base de datos</h2>
+      <p>Motor: <strong>PostgreSQL</strong>. Claves primarias <code>uuid(7)</code> (UUID v7, ordenables por tiempo). Dinero como <code>Decimal(12,2)</code> + <code>currency Char(3)</code>. Las tablas se nombran en <code>snake_case</code> plural con <code>@@map</code>. <span class="tag tag--verificado">Verificado</span></p>
+
+      <h3>Modelos activos (con endpoints)</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th scope="col">Modelo</th><th scope="col">Rol</th><th scope="col">Relaciones y restricciones clave</th><th scope="col">schema.prisma</th></tr></thead>
+        <tbody>
+          <tr><td><code>User</code></td><td>Cuenta; moneda por defecto <code>COP</code> al registrarse</td><td><code>email @unique</code>; cascada hacia todos sus datos</td><td>82-106</td></tr>
+          <tr><td><code>RefreshToken</code></td><td>Una fila por sesión</td><td><code>tokenHash @unique</code>, <code>revokedAt</code>, índice por <code>userId</code></td><td>112-124</td></tr>
+          <tr><td><code>Category</code></td><td>Agrupa productos; tipo <code>EXPENSE</code>/<code>INCOME</code></td><td><code>isSystem</code> protege «Sin categorizar»; <code>archivedAt</code></td><td>146-169</td></tr>
+          <tr><td><code>ExpenseItem</code></td><td>Producto reutilizable</td><td>Categoría obligatoria (<code>Restrict</code>); nombre activo único (lo garantiza el servicio)</td><td>267-295</td></tr>
+          <tr><td><code>Income</code></td><td>Fuente de ingreso</td><td>Frecuencia propia (incluye <code>WEEKLY</code>)</td><td>300-318</td></tr>
+          <tr><td><code>Scenario</code></td><td>Simulación</td><td>Estado <code>ACTIVE</code>/<code>INACTIVE</code>/<code>ARCHIVED</code>; por defecto <code>INACTIVE</code></td><td>325-347</td></tr>
+          <tr><td><code>ScenarioItem</code></td><td><strong>Snapshot</strong> de un producto dentro de un escenario</td><td><code>@@unique([scenarioId, expenseItemId])</code>; borrar el producto está restringido (<code>Restrict</code>)</td><td>356-389</td></tr>
+          <tr><td><code>ScenarioIncome</code></td><td>Snapshot de un ingreso</td><td><code>@@unique([scenarioId, incomeId])</code></td><td>397-415</td></tr>
+          <tr><td><code>ScenarioComposition</code></td><td>Tabla de aristas escenario→escenario</td><td>Padre en <code>Cascade</code>, hijo en <code>Restrict</code>; sin restricción de ciclos en la base (la aplica el servicio)</td><td>423-437</td></tr>
+        </tbody>
+      </table></div>
+
+      <h3>Modelos heredados (sin endpoints)</h3>
+      <p><code>Account</code> (126-144), <code>Transaction</code> (173-205), <code>RecurringTransaction</code> (208-237), <code>Budget</code> (239-260) y <code>SavingGoal</code> (440-458). Siguen en el schema por decisión explícita del ADR-0007: <code>archiveCategory</code> y <code>deleteCategory</code> todavía consultan esas relaciones (<code>categories.service.ts</code> 120-131 y 164-190). <span class="tag tag--documentado">Documentado</span> <span class="tag tag--verificado">Verificado</span></p>
+
+      <h3>Patrones de modelado que debes dominar</h3>
+      <div class="grid grid--2">
+        <div class="card"><strong>Archivar en lugar de borrar</strong><p>Las entidades con historia tienen <code>archivedAt</code>. Borrar se bloquea con <code>409 RESOURCE_IN_USE</code>, <code>CATEGORY_HAS_ITEMS</code> o <code>CATEGORY_HAS_RECORDS</code> si hay referencias. Archivar una categoría archiva en cascada sus productos, y desarchivarla <em>no</em> los restaura a propósito (<code>categories.service.ts</code> 150-152).</p></div>
+        <div class="card"><strong>Unicidad parcial</strong><p>«Un solo nombre activo» no se puede declarar en Prisma. Para <code>Budget</code> se escribió un índice parcial en SQL (<code>init/migration.sql</code> 186-188). Para <code>ExpenseItem</code>, <code>Category</code>, <code>Income</code> y <code>Scenario</code> se comprueba en el servicio con <code>findFirst</code> y <code>mode: "insensitive"</code>, que es susceptible a carreras.</p></div>
+        <div class="card"><strong>Datos derivados nunca almacenados</strong><p>Totales, proyecciones, cobertura y <code>hasUpdates</code> se calculan en cada lectura. El proyecto descartó de forma explícita guardar un flag <code>hasPendingChanges</code> (<code>docs/resumen.md</code>). <span class="tag tag--documentado">Documentado</span></p></div>
+        <div class="card"><strong>Transacciones Prisma</strong><p>Por lote (<code>$transaction([...])</code>) para operaciones independientes: archivar en cascada, mover y borrar, actualizar snapshots. Interactiva (<code>$transaction(async tx =&gt; …)</code>) cuando un paso depende del anterior: registro y rotación de tokens.</p></div>
+      </div>
+
+      <h3>Migraciones y datos iniciales</h3>
+      <ul>
+        <li>12 migraciones. Cuentan la historia del dominio: auth, <code>isSystem</code>, recurrencia, productos e ingresos, escenarios, un sistema de revisión que luego se retiró (<code>scenario_category_watches</code> creada y después eliminada), iconos de categoría añadidos y eliminados, y <code>frequencyOverride</code>.</li>
+        <li><code>createInitialUserData</code> crea 12 categorías por defecto <strong>dentro de la transacción del registro</strong> (<code>initial-user-data.ts</code> 12-38), así que no dependen de que se haya ejecutado el seed.</li>
+        <li><code>prisma/seed.ts</code> crea un usuario de desarrollo con esos mismos datos. Las credenciales de desarrollo están en ese archivo y <strong>no se reproducen aquí</strong>.</li>
+        <li><code>scripts/apply-migration.ts</code> aplica una migración a mano y la registra en <code>_prisma_migrations</code> con el checksum de Prisma, porque Windows App Control bloqueaba el binario del schema engine en la máquina del autor (comentario, líneas 10-18). <span class="tag tag--verificado">Verificado</span></li>
+      </ul>
+    </section>
+
+    <!-- ===================================================== -->
+    <section class="doc-section" id="api" aria-labelledby="h-api">
+      <h2 id="h-api">7. API REST</h2>
+      <p>Todas las rutas, excepto <code>/health</code>, <code>/auth/*</code> y <code>/docs</code>, exigen <code>Authorization: Bearer</code>; se aplica con <code>app.addHook("onRequest", app.authenticate)</code> en cada plugin de feature. Los listados aceptan <code>page</code>, <code>pageSize</code> (máximo 100), <code>sortBy</code> y <code>sortOrder</code>, y devuelven <code>{ data, meta }</code>. <span class="tag tag--verificado">Verificado</span></p>
+      <div class="table-wrap"><table>
+        <thead><tr><th scope="col">Grupo</th><th scope="col">Endpoints</th><th scope="col">Notas</th></tr></thead>
+        <tbody>
+          <tr><td><code>/health</code></td><td>GET</td><td>Ejecuta <code>SELECT 1</code>; responde 200 <code>ok</code> o 503 <code>degraded</code>; excluido del rate limit</td></tr>
+          <tr><td><code>/auth</code></td><td>POST register (201), login, refresh, logout (204)</td><td>Rate limit de 10 por minuto en register y login</td></tr>
+          <tr><td><code>/me</code></td><td>GET</td><td>Usuario autenticado</td></tr>
+          <tr><td><code>/categories</code></td><td>GET lista, GET :id, GET :id/summary, POST, PATCH :id, POST :id/archive, POST :id/unarchive, DELETE :id, POST :id/delete-with-reassignment</td><td>Las categorías de sistema no se pueden modificar (<code>SYSTEM_CATEGORY</code>)</td></tr>
+          <tr><td><code>/expense-items</code></td><td>GET lista, GET :id, GET :id/summary, POST, PATCH :id, POST :id/archive, POST :id/unarchive, <strong>POST :id/sync-scenarios</strong>, DELETE :id</td><td>Las mutaciones devuelven <code>affectedScenarios</code> y <code>changes</code></td></tr>
+          <tr><td><code>/incomes</code></td><td>Mismo conjunto que expense-items</td><td>Los ancestros por composición no se ven afectados</td></tr>
+          <tr><td><code>/scenarios</code></td><td>CRUD + activate, deactivate, archive y unarchive; summary; sync; items, incomes y compositions (GET, POST, DELETE); changes y changes/apply; POST :id/category</td><td>23 rutas; <code>changes</code> se conserva aunque ninguna pantalla lo usa hoy (<code>docs/resumen.md</code>)</td></tr>
+        </tbody>
+      </table></div>
+      <h3>Códigos de respuesta usados</h3>
+      <p><code>200</code>, <code>201</code> (crear y registrar), <code>204</code> (delete y logout), <code>400</code> (<code>VALIDATION_FAILED</code>, <code>INVALID_CATEGORY</code>, <code>CYCLE_DETECTED</code>…), <code>401</code>, <code>404</code> (también cuando el recurso es de otro usuario), <code>409</code> (conflictos de negocio), <code>429</code>, <code>500</code> y <code>503</code> (health).</p>
+<figure class="snippet">
+<figcaption><code>apps/api/src/lib/ownership.ts</code> · líneas 7-21 · fragmento real</figcaption>
+<pre>// Every user-owned resource lookup goes through this: a resource that exists
+// but belongs to another user is indistinguishable from a missing one (404),
+// so the API never confirms other users' resource ids.
+export async function findOwnedOrFail&lt;T&gt;(
+  delegate: OwnedDelegate&lt;T&gt;,
+  id: string,
+  userId: string,
+  resourceName: string,
+): Promise&lt;T&gt; {
+  const entity = await delegate.findFirst({ where: { id, userId } });
+  if (!entity) {
+    throw notFound(`${resourceName} not found`);
+  }
+  return entity;
+}</pre>
+<dl class="snippet__explain">
+  <dt>Concepto</dt><dd>Prevención de <strong>IDOR</strong> (Insecure Direct Object Reference): la autorización por recurso se resuelve en la misma consulta y responde 404 en lugar de 403 para no revelar qué IDs existen.</dd>
+  <dt>Diseño</dt><dd>Es genérico gracias a una interfaz estructural mínima (<code>OwnedDelegate</code>): cualquier delegate de Prisma con <code>findFirst</code> sirve. Composición en lugar de herencia.</dd>
+  <dt>Evidencia de test</dt><dd><code>scenarios.test.ts</code> 695: «hides another user's scenario behind a 404».</dd>
+</dl>
+</figure>
+    </section>
+
+    <!-- ===================================================== -->
+    <section class="doc-section" id="frontend" aria-labelledby="h-front">
+      <h2 id="h-front">8. Frontend</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th scope="col">Aspecto</th><th scope="col">Implementación</th><th scope="col">Dónde</th></tr></thead>
+        <tbody>
+          <tr><td>Punto de entrada</td><td><code>createRoot</code> + StrictMode; los mensajes de Zod se traducen al español con <code>z.config(es())</code></td><td><code>apps/web/src/main.tsx</code></td></tr>
+          <tr><td>Renderizado</td><td>CSR (SPA). Sin SSR</td><td><code>vite.config.ts</code></td></tr>
+          <tr><td>Rutas</td><td>9 rutas protegidas bajo <code>Layout</code>; <code>/scenarios</code> con layout anidado (sidebar)</td><td><code>app/router.tsx</code> 24-46</td></tr>
+          <tr><td>Estado</td><td>Servidor: TanStack Query. Sesión: Context (<code>AuthProvider</code>). UI: estado local. Tema: Context + <code>localStorage</code>. Colores de categoría: Context (<code>CategoryColorProvider</code> en <code>Layout.tsx</code> 117)</td><td><code>features/*</code></td></tr>
+          <tr><td>Consumo de API</td><td><code>apiRequest</code> + re-validación con Zod en <code>*.api.ts</code></td><td><code>lib/api-client.ts</code></td></tr>
+          <tr><td>Carga y error</td><td><code>isLoading</code> de las queries, <code>Skeleton</code>, <code>EmptyState</code>, toasts; errores de login inline con <code>role="alert"</code></td><td><code>packages/ui</code>, <code>features/auth</code></td></tr>
+          <tr><td>Responsive</td><td>RFC-0028: <code>PageContainer</code>, <code>CardGrid</code>, diálogos con <code>max-h</code> en <code>dvh</code>, <code>Sheet</code> lateral por debajo de <code>md</code></td><td><code>apps/web/src/components/</code></td></tr>
+          <tr><td>Accesibilidad</td><td>Radix (foco y teclado), <code>aria-*</code>/<code>role</code> en 23 lugares, <code>prefers-reduced-motion</code>, <code>prefers-reduced-transparency</code>, contraste trabajado con OKLCH (documentado)</td><td><code>index.css</code>, <code>docs/resumen.md</code></td></tr>
+        </tbody>
+      </table></div>
+
+      <h3>Algoritmo destacable: asignación de colores sin colisiones</h3>
+      <p><code>assignCategoryColors</code> (<code>apps/web/src/features/categories/category-color.ts</code> 129-175) asigna los colores de todo el conjunto a la vez: cada nombre prefiere el slot <code>hash % 10</code>; los nombres que no compiten conservan su slot (estabilidad), y los desplazados se reparten en el slot menos cargado. Garantiza cero colisiones hasta 10 categorías. Según <code>docs/resumen.md</code>, se verificó en el navegador con las 13 categorías del seed. <span class="tag tag--verificado">Código verificado</span> <span class="tag tag--documentado">Prueba manual documentada</span> No tiene test automatizado. <span class="tag tag--noencontrado">No encontrado</span></p>
+    </section>
+
+    <!-- ===================================================== -->
+    <section class="doc-section" id="devops" aria-labelledby="h-devops">
+      <h2 id="h-devops">9. DevOps, entorno y testing</h2>
+      <h3>Variables de entorno necesarias (solo nombres)</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th scope="col">App</th><th scope="col">Variable</th><th scope="col">Validación</th></tr></thead>
+        <tbody>
+          <tr><td>api</td><td><code>DATABASE_URL</code></td><td>Obligatoria</td></tr>
+          <tr><td>api</td><td><code>JWT_SECRET</code></td><td>Obligatoria, mínimo 32 caracteres</td></tr>
+          <tr><td>api</td><td><code>NODE_ENV</code>, <code>HOST</code>, <code>PORT</code>, <code>CORS_ORIGIN</code></td><td>Opcionales con valores por defecto (<code>config/env.ts</code> 5-13)</td></tr>
+          <tr><td>web</td><td><code>VITE_API_URL</code></td><td>Debe ser una URL válida (<code>web/src/lib/env.ts</code>)</td></tr>
+        </tbody>
+      </table></div>
+      <p><code>apps/api/.env.test</code> <strong>está versionado</strong> y apunta a la base de datos de pruebas local. No se reproducen sus valores aquí. Convendría confirmar que el secreto que contiene es exclusivo de tests. <span class="tag tag--pendiente">Pendiente</span></p>
+      <h3>Pipeline</h3>
+      <ul>
+        <li>Local: <code>pnpm dev</code> (API y web en paralelo), <code>pnpm lint</code>, <code>pnpm typecheck</code> y <code>pnpm test</code> vía Turbo. <span class="tag tag--verificado">Verificado</span></li>
+        <li>Pre-commit: lint-staged (ESLint <code>--fix</code> + Prettier). <span class="tag tag--verificado">Verificado</span></li>
+        <li>CI, contenedores, despliegue, migraciones de producción, monitorización y backups: <span class="tag tag--noencontrado">No encontrado</span>. Lo único relacionado es <code>/health</code>, útil para un futuro health check, y el apagado ordenado con <code>SIGTERM</code> (<code>server.ts</code> 6-19), que encaja con plataformas como Railway.</li>
+      </ul>
+    </section>
+
+    <!-- ===================================================== -->
+    <section class="doc-section" id="seguridad" aria-labelledby="h-seg">
+      <h2 id="h-seg">10. Seguridad y calidad</h2>
+      <p>Esta sección lista evidencia, no certifica que la aplicación sea segura. No se ejecutaron análisis dinámicos ni de dependencias.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th scope="col">Control</th><th scope="col">Evidencia</th><th scope="col">Estado</th></tr></thead>
+        <tbody>
+          <tr><td>Validación de entrada</td><td>Zod en cada ruta y límites en <code>pageSize</code>, nombres y montos</td><td><span class="tag tag--verificado">Verificado</span></td></tr>
+          <tr><td>Hash de contraseñas</td><td>bcrypt, coste 12</td><td><span class="tag tag--verificado">Verificado</span></td></tr>
+          <tr><td>Enumeración de cuentas</td><td>Mismo error en login para email inexistente y contraseña incorrecta. <em>Pero</em> el registro responde <code>409 EMAIL_TAKEN</code>, que sí revela si un email existe</td><td><span class="tag tag--verificado">Verificado</span></td></tr>
+          <tr><td>Almacenamiento de tokens</td><td>Access token en memoria; refresh en cookie HttpOnly; en la base solo hashes</td><td><span class="tag tag--verificado">Verificado</span></td></tr>
+          <tr><td>CSRF</td><td>Cookie <code>SameSite=Lax</code> limitada a <code>/auth</code>; las rutas de datos usan Bearer, no cookies</td><td><span class="tag tag--inferido">Mitigación inferida</span></td></tr>
+          <tr><td>XSS</td><td>React escapa la salida; no se encontró <code>dangerouslySetInnerHTML</code> en la búsqueda; helmet añade cabeceras</td><td><span class="tag tag--inferido">Inferido</span></td></tr>
+          <tr><td>Autorización por recurso</td><td><code>findOwnedOrFail</code> + test de aislamiento entre usuarios</td><td><span class="tag tag--verificado">Verificado</span></td></tr>
+          <tr><td>Inyección SQL</td><td>Prisma parametriza; el único SQL crudo es <code>$queryRaw`SELECT 1`</code> (template tag, parametrizado)</td><td><span class="tag tag--verificado">Verificado</span></td></tr>
+          <tr><td>Fuga de detalles internos</td><td>El manejador nunca reenvía mensajes de errores ajenos; el 404 no repite la URL</td><td><span class="tag tag--verificado">Verificado</span></td></tr>
+          <tr><td>Rate limiting</td><td>Global y estricto en auth; en memoria del proceso</td><td><span class="tag tag--verificado">Verificado</span></td></tr>
+          <tr><td>Secretos</td><td><code>.env</code> en <code>.gitignore</code>; <code>JWT_SECRET</code> se valida al arrancar. <code>.env.test</code> versionado</td><td><span class="tag tag--pendiente">Revisar</span></td></tr>
+          <tr><td>Auditoría de dependencias / SAST</td><td>No hay configuración (ni Dependabot ni CI)</td><td><span class="tag tag--noencontrado">No encontrado</span></td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <!-- ===================================================== -->
+    <section class="doc-section" id="decisiones" aria-labelledby="h-dec">
+      <h2 id="h-dec">11. Decisiones de ingeniería</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th scope="col">Decisión</th><th scope="col">Dónde se evidencia</th><th scope="col">Ventaja</th><th scope="col">Limitación / coste</th><th scope="col">Alternativa</th><th scope="col">Origen</th></tr></thead>
+        <tbody>
+          <tr><td>Snapshots en escenarios, no referencias vivas</td><td><code>ScenarioItem</code>, ADR-0005</td><td>Un cambio de precio nunca altera una simulación sin que el usuario lo sepa</td><td>Hace falta detectar la deriva y sincronizar (mucho código en <code>scenarios.service.ts</code>)</td><td>Leer el precio en vivo (era la propuesta del ADR-0004)</td><td><span class="tag tag--documentado">Documentado</span></td></tr>
+          <tr><td>Separar cambios visuales de financieros</td><td><code>reconcileExpenseItemScenarios</code></td><td>Solo se pregunta al usuario cuando cambia un total</td><td>Dos caminos que mantener</td><td>Sincronizar todo, o preguntar siempre</td><td><span class="tag tag--documentado">RFC-0023.3 en resumen.md</span></td></tr>
+          <tr><td>Datos derivados no se almacenan</td><td><code>getScenarioSummary</code></td><td>Imposible que queden desincronizados</td><td>Coste de lectura (BFS + consultas)</td><td>Columnas materializadas o caché</td><td><span class="tag tag--documentado">Documentado</span></td></tr>
+          <tr><td>Archivar en lugar de borrar</td><td><code>archivedAt</code>, servicios <code>delete*</code></td><td>Preserva la historia de las simulaciones</td><td>La unicidad depende de los activos; complejidad en desarchivar</td><td>Soft delete genérico o borrado en cascada</td><td><span class="tag tag--documentado">Documentado</span></td></tr>
+          <tr><td>Retirar el ledger sin migrar el schema</td><td>ADR-0007</td><td>Cambio de producto rápido y reversible</td><td>Modelos huérfanos; <code>deleteCategory</code> cuenta relaciones de modelos sin uso</td><td>Migración que elimine las tablas</td><td><span class="tag tag--documentado">Documentado</span></td></tr>
+          <tr><td>Códigos de error estables + capa de textos en el cliente</td><td><code>errors.ts</code>, <code>error-messages.ts</code></td><td>Textos en español, posibilidad de i18n, sin fugas</td><td>El catálogo debe crecer solo añadiendo («append-only»)</td><td>Mensajes del servidor ya traducidos</td><td><span class="tag tag--documentado">RFC-0029</span></td></tr>
+          <tr><td>Refresh opaco rotativo en cookie HttpOnly</td><td><code>auth.service.ts</code></td><td>Resistente a XSS y a filtraciones de la base</td><td>Necesita estado y single-flight en el cliente</td><td>JWT de larga vida o sesiones de servidor</td><td><span class="tag tag--documentado">ADR-0001 + comentarios</span></td></tr>
+          <tr><td>Servicios como funciones que reciben <code>prisma</code></td><td><code>*.service.ts</code></td><td>Fáciles de probar y de componer dentro de transacciones</td><td>Sin capa de repositorio ni interfaces</td><td>Clases con inyección de dependencias (NestJS)</td><td><span class="tag tag--inferido">Motivo no documentado</span></td></tr>
+          <tr><td>Monorepo con utils compartido</td><td><code>packages/utils</code></td><td>Misma fórmula en servidor y cliente</td><td>Schemas Zod duplicados entre la API y types</td><td>Repos separados u OpenAPI codegen</td><td><span class="tag tag--inferido">Inferido</span></td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <!-- ===================================================== -->
+    <section class="doc-section" id="hallazgos" aria-labelledby="h-hall">
+      <h2 id="h-hall">12. Hallazgos y limitaciones técnicas observables</h2>
+      <p>Son observaciones del código, no incidentes. Sirven para preparar respuestas del tipo «¿qué mejorarías?».</p>
+      <ol>
+        <li><strong>Dinero como <code>Number</code></strong>: <code>Decimal(12,2)</code> se convierte con <code>Number(...)</code> para sumar y prorratear (<code>getScenarioSummary</code>, <code>toPublic</code>). Con valores grandes o divisiones (÷ 12, × 52 ÷ 12) aparecen errores de coma flotante. Alternativas: <code>Prisma.Decimal</code>, decimal.js o trabajar en centavos enteros.</li>
+        <li><strong>Consultas N+1 en grafos</strong>: <code>reaches</code>, <code>collectReachableScenarioIds</code> y <code>collectAncestorScenarioIds</code> hacen una consulta por nodo; <code>listScenarios</code> repite el proceso por fila. Alternativa: una CTE recursiva (<code>WITH RECURSIVE</code>) con <code>$queryRaw</code>.</li>
+        <li><strong>Condiciones de carrera check-then-act</strong>: la unicidad de nombres, la detección de ciclos y la detección de reutilización del refresh token leen y luego escriben fuera de una transacción serializable.</li>
+        <li><strong>Sin CI ni Docker</strong>, aunque estén en el ADR-0001 y en el diagrama de stack del README.</li>
+        <li><strong>Sin tests de auth</strong> y solo un test de frontend.</li>
+        <li><strong>Documentación desfasada</strong>: <code>.claude/CLAUDE.md</code> y la descripción de Swagger hablan de «finance tracker»; el ADR-0003 enlaza <code>lib/recurrence.ts</code>, que se eliminó en RFC-0027; los RFC citados no están en el repo.</li>
+        <li><strong>Código sin consumidores</strong>: <code>DataTable</code>, la prop <code>badge</code> de <code>StatCard</code>, <code>vectra-logo.png</code>, los endpoints <code>/scenarios/:id/changes</code> y la dependencia <code>recharts</code> (los cuatro primeros los reconoce <code>docs/resumen.md</code>).</li>
+        <li><strong>Sin lazy loading</strong> de rutas.</li>
+        <li><strong>Swagger UI expuesta</strong> sin condicionar por entorno.</li>
+      </ol>
+    </section>
+
+    <!-- ===================================================== -->
+    <section class="doc-section" id="entrevista" aria-labelledby="h-ent">
+      <h2 id="h-ent">13. Preparación para entrevistas</h2>
+
+      <h3 id="pitch">13.1 Presentación oral (60-90 segundos)</h3>
+      <div class="pitch">
+        <p>«Vectra es un simulador de finanzas personales. En lugar de registrar gastos pasados, permite modelar decisiones futuras: armo escenarios combinando productos, como suscripciones o el gimnasio, con ingresos, y la app me dice cuánto cuesta ese estilo de vida al mes, a seis meses y al año, y qué porcentaje de mi ingreso consume. Los escenarios se pueden componer entre sí.</p>
+        <p>Es un monorepo TypeScript con pnpm y Turborepo. El frontend es una SPA en React 19 con Vite, TanStack Query para el estado del servidor y React Hook Form con Zod para los formularios. El backend es una API REST en Fastify con Prisma sobre PostgreSQL, organizada por features. Zod valida cada request y además genera la documentación OpenAPI.</p>
+        <p>La decisión de la que más puedo hablar es que un escenario guarda instantáneas de cada producto. Si cambio un precio, el escenario no se altera solo: la API me dice qué escenarios se verían afectados, también los que lo heredan por composición, y yo decido si sincronizo. Para la autenticación usé JWT de vida corta en memoria y refresh tokens opacos y rotativos en cookies HttpOnly, con detección de reutilización.</p>
+        <p>El proyecto empezó como un tracker de transacciones y lo reorienté a simulación. Esa transición, documentada en ADRs, me enseñó a retirar funcionalidad de forma controlada.»</p>
+      </div>
+      <div class="callout callout--warn">
+        <span class="callout__title">Completa con tu experiencia (no se puede deducir del repo)</span>
+        <ul>
+          <li>¿Lo desarrollaste solo? ¿Qué partes generaste con ayuda de IA y cuáles escribiste tú? (El repo incluye <code>.claude/CLAUDE.md</code> y commits con autor «Juan Pablo» y «Juan Pablo Urrego».)</li>
+          <li>¿Está desplegado? ¿Dónde? ¿Tiene usuarios reales?</li>
+          <li>¿Por qué pivotaste de tracker a simulador? ¿Fue por feedback o por interés personal?</li>
+          <li>¿Qué fue lo más difícil? ¿Qué harías distinto?</li>
+        </ul>
+      </div>
+
+      <h3 id="preguntas">13.2 Preguntas y respuestas</h3>
+
+      <details class="card question">
+        <summary><span class="tag tag--nivel">Junior</span> ¿Por qué guardas el access token en memoria y no en localStorage?</summary>
+        <dl>
+          <dt>Qué evalúa</dt><dd>Conocimiento básico de XSS y del almacenamiento en el navegador.</dd>
+          <dt>Conceptos</dt><dd>XSS, cookies HttpOnly, alcance de <code>localStorage</code>.</dd>
+          <dt>Respuesta sugerida</dt><dd>Cualquier script inyectado puede leer <code>localStorage</code>. Mantengo el access token en una variable de módulo (<code>api-client.ts</code> 21-24), que se pierde al recargar. Para no perder la sesión, el refresh token vive en una cookie HttpOnly que JavaScript no puede leer, y al cargar la app se restaura la sesión con <code>/auth/refresh</code>.</dd>
+          <dt>Evidencia</dt><dd><code>apps/web/src/lib/api-client.ts</code> 21-32; <code>AuthProvider.tsx</code> 20-36.</dd>
+          <dt>Seguimiento</dt><dd>¿Y si hay XSS de todos modos? (El atacante puede hacer peticiones mientras la página esté abierta, pero no puede robar el refresh token para usarlo después.)</dd>
+          <dt>Evita</dt><dd>Decir que las cookies HttpOnly «eliminan» el riesgo de XSS.</dd>
+        </dl>
+      </details>
+
+      <details class="card question">
+        <summary><span class="tag tag--nivel">Junior</span> ¿Qué hace Zod y dónde lo usas?</summary>
+        <dl>
+          <dt>Qué evalúa</dt><dd>Diferencia entre tipos estáticos y validación en runtime.</dd>
+          <dt>Conceptos</dt><dd>Frontera de confianza, <code>z.infer</code>, <code>safeParse</code>.</dd>
+          <dt>Respuesta sugerida</dt><dd>TypeScript no existe en runtime. Uso Zod para validar requests en Fastify, las variables de entorno al arrancar, los formularios y también las respuestas que recibe el frontend. Los mismos schemas generan el OpenAPI.</dd>
+          <dt>Evidencia</dt><dd><code>apps/api/src/config/env.ts</code>; <code>apps/web/src/features/auth/auth.api.ts</code> 10-27.</dd>
+          <dt>Seguimiento</dt><dd>¿Por qué no <code>z.coerce.boolean()</code> en query strings? (<code>pagination.ts</code> 58-63.)</dd>
+          <dt>Evita</dt><dd>Decir que el frontend y el backend comparten exactamente los mismos schemas: en la API están duplicados.</dd>
+        </dl>
+      </details>
+
+      <details class="card question">
+        <summary><span class="tag tag--nivel">Junior</span> ¿Por qué algunas entidades se archivan en lugar de borrarse?</summary>
+        <dl>
+          <dt>Qué evalúa</dt><dd>Criterio de modelado de datos.</dd>
+          <dt>Conceptos</dt><dd>Integridad referencial, <code>onDelete: Restrict</code>, soft delete.</dd>
+          <dt>Respuesta sugerida</dt><dd>Un producto usado en un escenario tiene snapshots que lo referencian. Borrarlo rompería esa historia, así que la base lo impide (<code>Restrict</code>) y la API responde <code>409 RESOURCE_IN_USE</code> sugiriendo archivar.</dd>
+          <dt>Evidencia</dt><dd><code>expense-items.service.ts</code> 189-211; <code>schema.prisma</code> 384.</dd>
+          <dt>Seguimiento</dt><dd>¿Qué pasa con la unicidad del nombre si archivas y luego creas otro igual?</dd>
+          <dt>Evita</dt><dd>Confundir archivar con soft delete genérico: aquí el archivado tiene reglas de negocio propias (cascadas, desarchivar).</dd>
+        </dl>
+      </details>
+
+      <details class="card question">
+        <summary><span class="tag tag--nivel">Intermedio</span> Explica la rotación de refresh tokens y la detección de reutilización.</summary>
+        <dl>
+          <dt>Qué evalúa</dt><dd>Diseño de autenticación más allá de «uso JWT».</dd>
+          <dt>Conceptos</dt><dd>Tokens opacos, hash SHA-256, rotación, revocación, OAuth 2.0 Security BCP.</dd>
+          <dt>Respuesta sugerida</dt><dd>Cada <code>/auth/refresh</code> revoca el token presentado y emite uno nuevo en la misma transacción. Si vuelve a llegar un token revocado, alguien lo duplicó: revoco todas las sesiones activas del usuario. En la base guardo solo el hash, así que una filtración no sirve para reutilizarlas.</dd>
+          <dt>Evidencia</dt><dd><code>auth.service.ts</code> 13-15, 82-118.</dd>
+          <dt>Seguimiento</dt><dd>¿Qué pasa si dos pestañas refrescan a la vez? (En una pestaña lo resuelve el single-flight del cliente; entre pestañas distintas podría dispararse una falsa detección. <span class="tag tag--inferido">Inferido</span>)</dd>
+          <dt>Evita</dt><dd>Afirmar que el logout invalida el JWT de inmediato: sigue siendo válido hasta 15 minutos.</dd>
+        </dl>
+      </details>
+
+      <details class="card question">
+        <summary><span class="tag tag--nivel">Intermedio</span> ¿Cómo organizas la caché de TanStack Query cuando los datos están relacionados?</summary>
+        <dl>
+          <dt>Qué evalúa</dt><dd>Manejo de estado del servidor en apps reales.</dd>
+          <dt>Conceptos</dt><dd>Query key factories, invalidación jerárquica, <code>staleTime</code>.</dd>
+          <dt>Respuesta sugerida</dt><dd>Cada feature tiene <code>*.keys.ts</code> con claves jerárquicas. Una mutación de producto invalida <code>expenseItemsKeys.all</code>, <code>categoriesKeys.all</code> y <code>scenariosKeys.all</code>, porque el precio afecta el total de la categoría y los snapshots de los escenarios.</dd>
+          <dt>Evidencia</dt><dd><code>use-expense-items.ts</code> 32-39.</dd>
+          <dt>Seguimiento</dt><dd>¿Cuándo usarías <code>setQueryData</code> o actualizaciones optimistas?</dd>
+          <dt>Evita</dt><dd>Decir que no hay coste: invalidar de forma amplia provoca refetch extra.</dd>
+        </dl>
+      </details>
+
+      <details class="card question">
+        <summary><span class="tag tag--nivel">Intermedio</span> ¿Cómo manejas los errores entre la API y la UI?</summary>
+        <dl>
+          <dt>Qué evalúa</dt><dd>Diseño de contratos y experiencia de usuario.</dd>
+          <dt>Conceptos</dt><dd>Envelope de error, códigos estables, separación entre mensaje técnico y texto para el usuario.</dd>
+          <dt>Respuesta sugerida</dt><dd>La API devuelve <code>code</code> (catálogo cerrado) y un <code>message</code> técnico en inglés. Un único módulo del frontend traduce <code>code</code> a español, con variantes por recurso. Los errores inesperados nunca exponen detalles internos, en ningún entorno.</dd>
+          <dt>Evidencia</dt><dd><code>error-handler.ts</code> 21-80; <code>error-messages.ts</code> 80-85; <code>packages/types/src/errors.ts</code>.</dd>
+          <dt>Seguimiento</dt><dd>¿Cómo versionarías el catálogo? (Solo añadiendo códigos, según su comentario.)</dd>
+          <dt>Evita</dt><dd>Mostrar <code>error.message</code> en la UI.</dd>
+        </dl>
+      </details>
+
+      <details class="card question">
+        <summary><span class="tag tag--nivel">Intermedio</span> ¿Cómo evitas que un usuario acceda a los datos de otro?</summary>
+        <dl>
+          <dt>Qué evalúa</dt><dd>Autorización a nivel de recurso (IDOR).</dd>
+          <dt>Conceptos</dt><dd>Autenticación frente a autorización, 403 frente a 404.</dd>
+          <dt>Respuesta sugerida</dt><dd>Toda búsqueda por ID pasa por <code>findOwnedOrFail</code>, que filtra por <code>userId</code> en la consulta y responde 404 si no coincide, para no confirmar que el ID existe.</dd>
+          <dt>Evidencia</dt><dd><code>lib/ownership.ts</code>; test en <code>scenarios.test.ts</code> 695.</dd>
+          <dt>Seguimiento</dt><dd>¿Y en <code>updateMany</code> sin <code>userId</code>? (Por ejemplo, <code>syncCategoryNameInScenarios</code> filtra por <code>categoryId</code>, cuya propiedad ya se verificó antes.)</dd>
+          <dt>Evita</dt><dd>Decir que el JWT basta para autorizar.</dd>
+        </dl>
+      </details>
+
+      <details class="card question">
+        <summary><span class="tag tag--nivel">Avanzado</span> ¿Por qué snapshots y no referencias vivas? ¿Qué coste tiene?</summary>
+        <dl>
+          <dt>Qué evalúa</dt><dd>Razonamiento de dominio y trade-offs.</dd>
+          <dt>Conceptos</dt><dd>Inmutabilidad, deriva de datos, consistencia eventual controlada por el usuario.</dd>
+          <dt>Respuesta sugerida</dt><dd>Un escenario es una simulación que el usuario decidió; no debe cambiar sin que lo sepa. Por eso guardo los campos financieros y comparo con la fuente para detectar deriva. El coste es la maquinaria de detección y sincronización, y que los cambios puramente visuales tuve que sincronizarlos automáticamente para no molestar al usuario.</dd>
+          <dt>Evidencia</dt><dd>ADR-0005; <code>schema.prisma</code> 349-389; <code>scenarios.service.ts</code> 945-1234.</dd>
+          <dt>Seguimiento</dt><dd>¿Por qué los ingresos no se heredan por composición y los gastos sí?</dd>
+          <dt>Evita</dt><dd>Presentar el diseño como obvio: el ADR-0004 proponía lo contrario y se corrigió.</dd>
+        </dl>
+      </details>
+
+      <details class="card question">
+        <summary><span class="tag tag--nivel">Avanzado</span> ¿Cómo detectas ciclos al componer escenarios y qué riesgos tiene tu solución?</summary>
+        <dl>
+          <dt>Qué evalúa</dt><dd>Algoritmos sobre grafos y concurrencia.</dd>
+          <dt>Conceptos</dt><dd>DAG, BFS, conjunto visitado, carreras check-then-act, CTE recursivas.</dd>
+          <dt>Respuesta sugerida</dt><dd>Antes de insertar padre→hijo hago un BFS desde el hijo; si alcanzo al padre, rechazo con <code>CYCLE_DETECTED</code>. Riesgos: una consulta por nodo (N+1) y la ausencia de aislamiento serializable. Lo mejoraría con una CTE recursiva y ejecutando la comprobación y la inserción en una transacción <code>SERIALIZABLE</code> o con un lock por usuario.</dd>
+          <dt>Evidencia</dt><dd><code>scenarios.service.ts</code> 372-393, 419-451; tests en 178-199.</dd>
+          <dt>Seguimiento</dt><dd>¿Cuál es la complejidad? (O(V+E) nodos y aristas, pero cada nodo es un round-trip a la base.)</dd>
+          <dt>Evita</dt><dd>Afirmar que la base impide los ciclos: no hay ninguna restricción.</dd>
+        </dl>
+      </details>
+
+      <details class="card question">
+        <summary><span class="tag tag--nivel">Avanzado</span> ¿Qué problemas tiene usar <code>Number</code> para dinero y cómo lo corregirías?</summary>
+        <dl>
+          <dt>Qué evalúa</dt><dd>Rigor en dominios financieros.</dd>
+          <dt>Conceptos</dt><dd>IEEE 754, decimales exactos, redondeo bancario, centavos enteros.</dd>
+          <dt>Respuesta sugerida</dt><dd>La base guarda <code>Decimal(12,2)</code>, pero convierto a <code>Number</code> para prorratear y sumar. Para mostrar es tolerable; para cálculos acumulados no. Usaría <code>Prisma.Decimal</code> o decimal.js en el servicio, o centavos enteros, y redondearía solo al presentar.</dd>
+          <dt>Evidencia</dt><dd><code>scenarios.service.ts</code> 1434-1449; <code>packages/utils/src/projections.ts</code> 9-22.</dd>
+          <dt>Seguimiento</dt><dd>¿Cómo serializas <code>Decimal</code> en JSON?</dd>
+          <dt>Evita</dt><dd>Negar el problema: es una limitación real del código actual.</dd>
+        </dl>
+      </details>
+
+      <details class="card question">
+        <summary><span class="tag tag--nivel">Avanzado</span> ¿Cómo retiraste una funcionalidad completa (el ledger) sin romper el sistema?</summary>
+        <dl>
+          <dt>Qué evalúa</dt><dd>Gestión del cambio y deuda técnica.</dd>
+          <dt>Conceptos</dt><dd>ADR, expand/contract, código muerto, compatibilidad del schema.</dd>
+          <dt>Respuesta sugerida</dt><dd>Lo documenté en el ADR-0007; eliminé rutas, servicios, schemas, tests y pantallas, pero dejé las tablas porque la lógica de categorías todavía cuenta esas relaciones y porque una migración destructiva era irreversible. El paso pendiente sería una migración que elimine esos modelos cuando desaparezcan sus dependencias.</dd>
+          <dt>Evidencia</dt><dd>ADR-0007; commits <code>8652a34</code>, <code>5fc373b</code>, <code>dee49f3</code>.</dd>
+          <dt>Seguimiento</dt><dd>¿Qué riesgos tiene dejar modelos sin uso?</dd>
+          <dt>Evita</dt><dd>Decir que el ledger «ya no existe»: sus tablas siguen en el schema.</dd>
+        </dl>
+      </details>
+
+      <h3 id="preguntas-arq">13.3 Preguntas de arquitectura</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th scope="col">Tema</th><th scope="col">Pregunta</th><th scope="col">Puntos clave de la respuesta</th></tr></thead>
+        <tbody>
+          <tr><td>Organización</td><td>¿Por qué organizar por features?</td><td>Cambios localizados por dominio; patrón routes/schemas/service repetido; facilita leer un feature completo.</td></tr>
+          <tr><td>Flujo de datos</td><td>Recorre un click hasta la base de datos.</td><td>Formulario → hook → <code>*.api.ts</code> → <code>apiRequest</code> → plugin → ruta (Zod) → servicio → Prisma → respuesta re-validada → invalidación.</td></tr>
+          <tr><td>Capas</td><td>¿Dónde viven las reglas de negocio?</td><td>Solo en los servicios; las rutas son declarativas. La UI no calcula totales (ADR-0006).</td></tr>
+          <tr><td>Modelado</td><td>¿Cómo modelas el dinero?</td><td><code>Decimal(12,2)</code> + <code>Char(3)</code>; una moneda por usuario; la limitación de <code>Number</code>.</td></tr>
+          <tr><td>Seguridad</td><td>¿Qué harías antes de producción?</td><td>CI con auditoría de dependencias, <code>trustProxy</code>, rate limit compartido, cookie cross-site, proteger <code>/docs</code>, tests de auth.</td></tr>
+          <tr><td>Escalabilidad</td><td>¿Qué se rompe primero con muchos escenarios?</td><td>Los BFS N+1 y el <code>monthly</code> por fila de <code>listScenarios</code>; solución: CTE recursiva o cálculo en lote.</td></tr>
+          <tr><td>Rendimiento (front)</td><td>¿Cómo reducirías el bundle?</td><td>Lazy loading de rutas; quitar <code>recharts</code>; revisar el uso de framer-motion.</td></tr>
+          <tr><td>Pruebas</td><td>¿Por qué integración en lugar de unitarias?</td><td>El valor está en las reglas que cruzan la base de datos; trade-off: más lentas y secuenciales.</td></tr>
+          <tr><td>Despliegue</td><td>¿Cómo lo desplegarías?</td><td>Hoy no hay configuración. Propuesta coherente con el ADR-0001: web en Vercel, API en Railway con <code>prisma migrate deploy</code> antes de arrancar y health check en <code>/health</code>.</td></tr>
+          <tr><td>Alternativas</td><td>¿Por qué no Next.js full-stack?</td><td>El ADR-0001 eligió separar frontend y backend; el motivo exacto no está escrito. Ventajas: API reutilizable y documentada, despliegues independientes.</td></tr>
+        </tbody>
+      </table></div>
+
+      <h3 id="preguntas-problemas">13.4 Resolución de problemas</h3>
+      <p><span class="tag tag--inferido">Escenarios hipotéticos para practicar</span>: ninguno corresponde a un incidente documentado, salvo donde se indica.</p>
+      <ol>
+        <li><strong>«Los usuarios se desconectan al abrir dos pestañas.»</strong> Hipótesis: dos refresh simultáneos desde pestañas distintas disparan la detección de reutilización. Diagnóstico: logs de «Refresh token reuse detected». Opciones: periodo de gracia para el token anterior, coordinar pestañas con BroadcastChannel o lock en la base.</li>
+        <li><strong>«La lista de escenarios tarda varios segundos.»</strong> Hipótesis: N+1 en <code>getScenarioMonthlyTotal</code>. Medición: logs de consultas de Prisma. Solución: una CTE recursiva por lote.</li>
+        <li><strong>«Un total mensual muestra 33,333333.»</strong> Prorrateo con <code>Number</code>. Solución: redondeo controlado y aritmética decimal.</li>
+        <li><strong>«Se creó un ciclo de composición.»</strong> Carrera entre dos peticiones. Solución: transacción serializable o restricción mediante trigger.</li>
+        <li><strong>Problema documentado en el historial</strong>: StrictMode ejecutaba dos veces el refresh de arranque y uno de los dos fallaba al reutilizar la cookie. Solución aplicada: <code>useRef</code> como guardia (<code>AuthProvider.tsx</code> 14-25). <span class="tag tag--documentado">Documentado en el código</span></li>
+        <li><strong>Problema documentado</strong>: Windows bloqueaba el binario de migraciones de Prisma. Solución aplicada: el script <code>db:apply</code>. <span class="tag tag--documentado">Documentado</span></li>
+      </ol>
+    </section>
+
+    <!-- ===================================================== -->
+    <section class="doc-section" id="repaso" aria-labelledby="h-rep">
+      <h2 id="h-rep">14. Repaso rápido</h2>
+      <div class="grid grid--2">
+        <div class="card"><h4>10 conceptos esenciales</h4><ol>
+          <li>Snapshot frente a referencia viva</li><li>Cambios visuales frente a financieros</li><li>BFS y detección de ciclos en un DAG</li><li>Rotación de refresh tokens con detección de reutilización</li><li>Single-flight de promesas</li><li>IDOR y respuesta 404</li><li>Validación en runtime con Zod</li><li>Query keys jerárquicas e invalidación</li><li>Índices únicos parciales</li><li>Datos derivados no almacenados</li></ol></div>
+        <div class="card"><h4>5 archivos clave</h4><ol>
+          <li><code>apps/api/src/app.ts</code></li><li><code>apps/api/prisma/schema.prisma</code></li><li><code>apps/api/src/features/scenarios/scenarios.service.ts</code></li><li><code>apps/api/src/features/auth/auth.service.ts</code></li><li><code>apps/web/src/lib/api-client.ts</code></li></ol></div>
+        <div class="card"><h4>5 decisiones técnicas</h4><ol>
+          <li>Snapshots en escenarios (ADR-0005)</li><li>Interfaz guiada por preguntas (ADR-0006)</li><li>Retirar el ledger sin migrar (ADR-0007)</li><li>Códigos de error estables + textos en el cliente</li><li>Access token en memoria y refresh opaco en cookie HttpOnly</li></ol></div>
+        <div class="card"><h4>10 preguntas de entrevista</h4><ol>
+          <li>¿Por qué snapshots?</li><li>¿Cómo detectas ciclos?</li><li>¿Cómo funciona la renovación del token?</li><li>¿Dónde validas y por qué?</li><li>¿Cómo evitas IDOR?</li><li>¿Cómo organizas la caché?</li><li>¿Cómo manejas los errores?</li><li>¿Qué mejorarías del rendimiento?</li><li>¿Cómo tratas el dinero?</li><li>¿Cómo lo desplegarías?</li></ol></div>
+      </div>
+      <h4>Errores conceptuales a evitar</h4>
+      <ul class="checklist">
+        <li>Decir que hay CI o Docker: no existen.</li>
+        <li>Decir que el ledger se eliminó por completo: sus tablas siguen.</li>
+        <li>Decir que la API y la web comparten todos los schemas: solo comparten <code>ErrorCode</code> y utils.</li>
+        <li>Confundir autenticación con autorización.</li>
+        <li>Decir que el logout invalida el JWT al instante.</li>
+        <li>Presentar Recharts como parte del producto actual.</li>
+        <li>Inventar métricas de uso o despliegue.</li>
+      </ul>
+      <h4>Temas para estudiar a fondo</h4>
+      <ul class="checklist">
+        <li>CTE recursivas en PostgreSQL</li>
+        <li>Niveles de aislamiento de transacciones</li>
+        <li>OAuth 2.0 Security BCP (rotación de tokens)</li>
+        <li>Aritmética decimal en JavaScript</li>
+        <li>Cookies cross-site (<code>SameSite=None</code>, CHIPS)</li>
+        <li>Code splitting con React.lazy</li>
+        <li>Pipelines de CI con servicios Postgres</li>
+        <li>Fastify: encapsulación de plugins</li>
+      </ul>
+    </section>
+
+    <!-- ===================================================== -->
+    <section class="doc-section" id="limites" aria-labelledby="h-lim">
+      <h2 id="h-lim">15. Límites de este análisis</h2>
+      <ul>
+        <li>Análisis estático: no se instalaron dependencias, no se ejecutaron la app ni los tests, ni se consultó ninguna base de datos. Los conteos de tests se obtuvieron contando <code>it(</code> en los archivos.</li>
+        <li>Los RFC citados en comentarios y en <code>docs/resumen.md</code> no están en el repo; lo que se afirma de ellos proviene de esas referencias indirectas.</li>
+        <li>No se verificó si existe un despliegue en producción.</li>
+        <li>Las motivaciones marcadas como <span class="tag tag--inferido">Inferido</span> no están confirmadas por el autor.</li>
+        <li>Rangos de líneas válidos para <code>b4caeb5</code>. No se copiaron valores de <code>.env.test</code>, <code>.env.example</code> ni credenciales del seed.</li>
+      </ul>
+      <p class="note">Documento generado para estudio personal. Versión inspeccionada: <code>juan888420/vectra@b4caeb5</code> · Análisis: 2026-10-14.</p>
+    </section>
+
+  </main>
+</div>
+
+<script>
+  /* JavaScript mínimo con un único propósito: el botón de impresión.
+     Antes de imprimir abre todos los <details> (fichas y preguntas) para que
+     el PDF incluya su contenido, y después restaura el estado previo.
+     El documento funciona completo sin JavaScript. */
+  (function () {
+    var opened = [];
+    function expandAll() {
+      opened = [];
+      document.querySelectorAll("details:not([open])").forEach(function (d) {
+        d.setAttribute("open", "");
+        opened.push(d);
+      });
+    }
+    function restore() {
+      opened.forEach(function (d) { d.removeAttribute("open"); });
+      opened = [];
+    }
+    window.addEventListener("beforeprint", expandAll);
+    window.addEventListener("afterprint", restore);
+    var btn = document.getElementById("print-btn");
+    if (btn) btn.addEventListener("click", function () { window.print(); });
+  })();
+</script>
+</body>
+</html>

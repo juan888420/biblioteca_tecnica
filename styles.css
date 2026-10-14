@@ -1,0 +1,38 @@
+/* Biblioteca técnica · catálogo general. Hoja independiente de los documentos de proyecto. */
+:root {
+  --bg: #f6f7f9; --surface: #fff; --border: #dde1e7; --text: #1b1f27; --muted: #555e6d;
+  --accent: #4338ca; --accent-soft: #eef0ff;
+  --ok: #166534; --ok-bg: #dcfce7; --pend: #374151; --pend-bg: #e5e7eb;
+  --radius: 12px;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1218; --surface: #161a22; --border: #2b3240; --text: #e6e9ef; --muted: #a2abba;
+    --accent: #a5b4fc; --accent-soft: #23264a;
+    --ok: #86efac; --ok-bg: #12301f; --pend: #d1d5db; --pend-bg: #2a2f39;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-sans); line-height: 1.6; }
+main { max-width: 1040px; margin: 0 auto; padding: 3rem 16px 4rem; }
+h1 { font-size: 2.2rem; margin: 0 0 .5rem; line-height: 1.2; }
+h2 { margin: 2.5rem 0 1rem; font-size: 1.35rem; }
+p { margin: 0 0 1rem; }
+a { color: var(--accent); }
+a:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.lead { color: var(--muted); font-size: 1.08rem; max-width: 70ch; }
+.catalog { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); padding: 0; list-style: none; }
+.project { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.1rem 1.2rem; display: flex; flex-direction: column; gap: .5rem; }
+.project h3 { margin: 0; font-size: 1.1rem; }
+.project p { margin: 0; color: var(--muted); font-size: .93rem; }
+.project .stack { font-size: .82rem; color: var(--muted); }
+.project a.open { margin-top: auto; font-weight: 600; text-decoration: none; }
+.badge { align-self: flex-start; font-size: .72rem; font-weight: 600; padding: .12rem .55rem; border-radius: 999px; }
+.badge--ok { color: var(--ok); background: var(--ok-bg); }
+.badge--pend { color: var(--pend); background: var(--pend-bg); }
+.project--pending { border-style: dashed; }
+footer { margin-top: 3rem; font-size: .85rem; color: var(--muted); }
+@media print { body { background: #fff; color: #000; } .project { break-inside: avoid; } }

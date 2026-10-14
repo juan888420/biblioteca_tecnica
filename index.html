@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Biblioteca técnica</title>
+  <meta name="description" content="Catálogo de la documentación técnica de mis proyectos de software.">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<main>
+  <h1>Biblioteca técnica</h1>
+  <p class="lead">Documentación de estudio sobre mis proyectos de software: arquitectura, tecnologías, flujos reales con referencias al código y preparación para entrevistas. Cada documento indica la versión del repositorio que se analizó y distingue lo verificado de lo inferido.</p>
+
+  <h2>Proyectos documentados</h2>
+  <ul class="catalog">
+    <li class="project">
+      <span class="badge badge--ok">Documentado · piloto</span>
+      <h3>Vectra</h3>
+      <p>Simulador de escenarios financieros personales: productos, categorías, ingresos y escenarios componibles, con proyecciones y snapshots sincronizables.</p>
+      <p class="stack">Verificado: React 19 · Vite · TanStack Query · Fastify 5 · Prisma 7 · PostgreSQL · Zod · Turborepo</p>
+      <p class="stack">Versión: <code>b4caeb5</code> · análisis 2026-10-14</p>
+      <a class="open" href="proyectos/vectra/index.html">Abrir documentación →</a>
+    </li>
+  </ul>
+
+  <h2>Pendientes de análisis</h2>
+  <p>Repositorios ya inventariados (Etapa 1). Su documentación todavía no existe; el stack listado viene de los manifiestos y aún no se ha verificado en el código.</p>
+  <ul class="catalog">
+    <li class="project project--pending"><span class="badge badge--pend">Pendiente</span><h3>Vigía</h3><p>Control y seguimiento contractual para una oficina pública.</p><p class="stack">Declarado: Next.js · Fastify · Prisma · SDK de Anthropic</p></li>
+    <li class="project project--pending"><span class="badge badge--pend">Pendiente</span><h3>WikiToon</h3><p>Archivo de la TV infantil latinoamericana de los 90 y 2000 (incluye el repositorio de datos wikitoon-data).</p><p class="stack">Declarado: Next.js · Prisma · SQLite · TMDB</p></li>
+    <li class="project project--pending"><span class="badge badge--pend">Pendiente</span><h3>MediReserva (Reservas-project)</h3><p>Reservas de citas médicas con pagos y calendario.</p><p class="stack">Declarado: Next.js · Supabase · PayPal · Google Calendar · Playwright</p></li>
+    <li class="project project--pending"><span class="badge badge--pend">Pendiente</span><h3>Portafolio</h3><p>Portafolio actual (juan-urrego-portfolio) y versión anterior (Portafolio).</p><p class="stack">Declarado: Next.js 16 · Tailwind 4 · Framer Motion / HTML-CSS-JS</p></li>
+    <li class="project project--pending"><span class="badge badge--pend">Pendiente</span><h3>WhatsApp_IA</h3><p>Agente de IA para WhatsApp con panel web.</p><p class="stack">Declarado: Next.js · Baileys · SQLite · OpenRouter</p></li>
+    <li class="project project--pending"><span class="badge badge--pend">Pendiente</span><h3>Auditoria_AEO</h3><p>CLI que audita si una web es legible por crawlers de IA.</p><p class="stack">Declarado: Node 22 · cheerio · Playwright</p></li>
+    <li class="project project--pending"><span class="badge badge--pend">Pendiente</span><h3>AI OS</h3><p>Plataforma conversacional para negocios.</p><p class="stack">Declarado: React · Vite · Convex · SDK de Anthropic</p></li>
+    <li class="project project--pending"><span class="badge badge--pend">Pendiente</span><h3>Job Tracker</h3><p>Seguimiento de postulaciones de empleo.</p><p class="stack">Declarado: React · Vite · Express · Prisma</p></li>
+    <li class="project project--pending"><span class="badge badge--pend">Pendiente</span><h3>Mister Barber</h3><p>Landing de una barbería.</p><p class="stack">Declarado: SvelteKit 5 · Tailwind 4</p></li>
+    <li class="project project--pending"><span class="badge badge--pend">Pendiente</span><h3>base360-design-challenge</h3><p>Reto de diseño.</p><p class="stack">Declarado: Next.js · Framer Motion</p></li>
+  </ul>
+
+  <footer>Catálogo provisional generado durante la Etapa 2 (piloto). Se completará en la Etapa 5. Funciona abriendo este archivo localmente; no requiere servidor.</footer>
+</main>
+</body>
+</html>
